@@ -739,13 +739,15 @@ class UserTestController extends Controller
             return $tokenCheck;
         }
 
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
+
         $request->validate([
             'range_id' => 'required|integer',
         ]);
         
         $user = Auth::user();
         $attempt = $this->attemptService->getOrCreateAttempt($test);
-        $range = SubtestInstructionRange::findOrFail($request->range_id);
+        $range = $subTest->instructionRanges()->whereKey($request->range_id)->firstOrFail();
         
         $allQuestions = $subTest->questions()->orderBy('id')->get();
         $isShuffle = $test->is_shuffle == 1;

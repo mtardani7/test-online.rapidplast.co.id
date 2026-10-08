@@ -14,6 +14,7 @@ use App\Services\AttemptService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -22,13 +23,14 @@ class BackendAttemptSecurityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        cache()->flush();
 
         Schema::disableForeignKeyConstraints();
         foreach ([
             'attempt_answers', 'attempt_sub_tests', 'attempt_type_tests', 'attempts',
             'question_choices', 'questions', 'sub_tests', 'type_tests', 'tests',
             'model_has_permissions', 'model_has_roles', 'permissions', 'roles', 'users',
-            'scoring_component', 'scoring_rules', 'iq_ranges',
+            'scoring_component', 'scoring_rules', 'iq_ranges', 'subtest_instruction_ranges',
         ] as $table) {
             Schema::dropIfExists($table);
         }
@@ -186,6 +188,54 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertSame(200, $allowed->getStatusCode());
         $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
         $controller->getShuffledOrder(Request::create('/'), $testA, $subB);
+    }
+
+    public function test_legacy_attempt_routes_are_not_registered(): void
+    {
+        foreach (['attempt.start', 'attempt.answer', 'attempt.finish', 'attempt.result'] as $routeName) {
+            $this->assertFalse(Route::has($routeName), "Legacy route {$routeName} should not be registered.");
+        }
+
+        $legacyActions = collect(Route::getRoutes())->pluck('action.uses')->filter(function ($action) {
+            return is_string($action) && str_starts_with($action, 'App\\Http\\Controllers\\AttemptController@');
+        });
+        foreach (['start', 'saveAnswer', 'finish', 'result'] as $method) {
+            $this->assertFalse($legacyActions->contains("App\\Http\\Controllers\\AttemptController@{$method}"));
+        }
+    }
+
+    public function test_complete_range_is_scoped_to_subtest_and_test_hierarchy(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$testA, $typeA, $subA] = $this->makeHierarchy('complete-range-a');
+        [$testB, $typeB, $subB] = $this->makeHierarchy('complete-range-b');
+        $rangeAId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subA->id, 'start_number' => 1, 'end_number' => 1,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $rangeBId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subB->id, 'start_number' => 1, 'end_number' => 1,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $controller = app(\App\Http\Controllers\UserTestController::class);
+        $this->actingAs($user);
+
+        $valid = $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeAId]), $testA, $typeA, $subA);
+        $this->assertSame(302, $valid->getStatusCode());
+
+        try {
+            $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeBId]), $testA, $typeA, $subA);
+            $this->fail('A range owned by another subtest must be rejected.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(404, $exception->getStatusCode());
+        }
+
+        try {
+            $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeAId]), $testB, $typeB, $subA);
+            $this->fail('A mismatched test/type/subtest hierarchy must be rejected.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(404, $exception->getStatusCode());
+        }
     }
 
     public function test_question_routes_enforce_all_three_levels_of_test_hierarchy(): void
@@ -363,6 +413,11 @@ class BackendAttemptSecurityTest extends TestCase
         Schema::create('sub_tests', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('type_tests_id'); $table->string('name'); $table->string('slug')->unique();
             $table->integer('duration')->nullable(); $table->timestamps();
+        });
+        Schema::create('subtest_instruction_ranges', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('sub_test_id'); $table->integer('start_number'); $table->integer('end_number');
+            $table->integer('order_number')->default(0); $table->boolean('is_active')->default(true);
+            $table->text('description')->nullable(); $table->timestamps();
         });
         Schema::create('questions', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('sub_tests_id'); $table->text('question_text')->nullable();

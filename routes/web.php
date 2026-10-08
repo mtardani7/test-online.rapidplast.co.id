@@ -42,10 +42,6 @@ Route::middleware(['auth','verified','not_admin'])->group(function () {
     Route::get('/', [UserTestController::class, 'tests'])->name('user.tests');
     Route::get('/profile', [ProfileController::class, 'form'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'save'])->name('profile.save');
-    Route::post('/attempt/start', [AttemptController::class, 'start'])->name('attempt.start');
-    Route::post('/attempt/answer', [AttemptController::class, 'saveAnswer'])->name('attempt.answer');
-    Route::post('/attempt/finish', [AttemptController::class, 'finish'])->name('attempt.finish');
-
     Route::prefix('home')->group(function () {
         Route::get('/', [UserTestController::class, 'tests'])->name('user.tests');
         Route::get('{test:slug}', [UserTestController::class, 'typeTests'])->name('user.type-tests');
@@ -107,13 +103,6 @@ Route::middleware(['auth','role:admin|super_admin'])->group(function () {
             Route::put('/{question}', [QuestionController::class, 'update'])->name('question.update');
             Route::delete('/{question}', [QuestionController::class, 'destroy'])->name('question.destroy');
         });
-    });
-
-    Route::prefix('attempt')->group(function () {
-        Route::get('/start/{test}', [AttemptController::class, 'start'])->name('attempt.start');
-        Route::post('/answer/{attempt}', [AttemptController::class, 'saveAnswer'])->name('attempt.answer');
-        Route::post('/finish/{attempt}', [AttemptController::class, 'finish'])->name('attempt.finish');
-        Route::get('/result/{attempt}', [AttemptController::class, 'result'])->name('attempt.result');
     });
 
     Route::prefix('scoring')->group(function () {
