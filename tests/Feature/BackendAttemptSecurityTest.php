@@ -382,6 +382,53 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertDatabaseCount('attempt_sub_tests', 1);
     }
 
+    public function test_user_test_listing_query_count_is_batched_as_test_count_grows(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$completedTest, $typeTest, $subTest] = $this->makeHierarchy('batch-listing');
+        $attempt = Attempt::create([
+            'user_id' => $user->id, 'test_id' => $completedTest->id,
+            'total_correct' => 0, 'total_question' => 0, 'score' => 0,
+        ]);
+        $typeAttempt = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeTest->id,
+            'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+        \App\Models\AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttempt->id, 'sub_test_id' => $subTest->id,
+            'is_finished' => true, 'correct_count' => 0, 'wrong_count' => 0,
+        ]);
+
+        $this->actingAs($user);
+        $recordQueries = false;
+        $queryCount = 0;
+        DB::listen(function ($query) use (&$recordQueries, &$queryCount) {
+            if ($recordQueries) {
+                $queryCount++;
+            }
+        });
+
+        $recordQueries = true;
+        $firstView = app(\App\Http\Controllers\UserTestController::class)->tests();
+        $recordQueries = false;
+        $oneTestQueryCount = $queryCount;
+        $this->assertTrue($firstView->getData()['tests']->first()->all_type_tests_completed);
+        $this->assertSame(10, (int) $firstView->getData()['tests']->first()->total_duration);
+
+        foreach (['batch-listing-two', 'batch-listing-three', 'batch-listing-four'] as $suffix) {
+            $this->makeHierarchy($suffix);
+        }
+
+        $queryCount = 0;
+        $recordQueries = true;
+        $multipleTestsView = app(\App\Http\Controllers\UserTestController::class)->tests();
+        $recordQueries = false;
+        $this->assertSame($oneTestQueryCount, $queryCount);
+        $this->assertSame(4, $multipleTestsView->getData()['tests']->count());
+        $this->assertTrue($multipleTestsView->getData()['tests']->first()->all_type_tests_completed);
+        $this->assertFalse($multipleTestsView->getData()['tests']->last()->all_type_tests_completed);
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table) {

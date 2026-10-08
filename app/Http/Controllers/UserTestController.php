@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use App\Models\AttemptTypeTest;
 use App\Models\AttemptSubTest;
+use App\Models\Attempt;
 use App\Models\SubtestInstructionRange;
 use App\Models\DetailUser;
 use App\Services\AttemptService;
@@ -109,30 +110,48 @@ class UserTestController extends Controller
 
     public function tests()
     {
-        $tests = Tests::where('is_active', 1)->with('subtests')->get();
+        $tests = Tests::query()
+            ->where('is_active', 1)
+            ->with(['subtests', 'typeTests.subTests'])
+            ->get();
         $userId = Auth::id();
+
+        $attempts = Attempt::query()
+            ->where('user_id', $userId)
+            ->whereIn('test_id', $tests->pluck('id'))
+            ->get(['id', 'test_id'])
+            ->keyBy('test_id');
+
+        $attemptTypeTestsByAttempt = AttemptTypeTest::query()
+            ->whereIn('attempt_id', $attempts->pluck('id'))
+            ->get(['id', 'attempt_id', 'type_test_id'])
+            ->groupBy('attempt_id')
+            ->map(fn ($typeAttempts) => $typeAttempts->keyBy('type_test_id'));
+
+        $attemptTypeTestIds = $attemptTypeTestsByAttempt->flatten(1)->pluck('id');
+        $completedSubTestCounts = AttemptSubTest::query()
+            ->whereIn('attempt_type_test_id', $attemptTypeTestIds)
+            ->where('is_finished', 1)
+            ->get(['attempt_type_test_id'])
+            ->groupBy('attempt_type_test_id')
+            ->map(fn ($subAttempts) => $subAttempts->count());
         
         foreach ($tests as $test) {
             $test->total_duration = $test->subtests->sum('duration');
-            $attempt = \App\Models\Attempt::where('user_id', $userId)
-                ->where('test_id', $test->id)
-                ->first();
+            $attempt = $attempts->get($test->id);
             
             if ($attempt) {
                 $completedTypeTests = 0;
-                $totalTypeTests = $test->typeTests()->count();
+                $totalTypeTests = $test->typeTests->count();
+                $typeAttempts = $attemptTypeTestsByAttempt->get($attempt->id, collect());
                 
                 foreach ($test->typeTests as $typeTest) {
-                    $typeAttempt = \App\Models\AttemptTypeTest::where('attempt_id', $attempt->id)
-                        ->where('type_test_id', $typeTest->id)
-                        ->first();
+                    $typeAttempt = $typeAttempts->get($typeTest->id);
                     
                     if ($typeAttempt) {
-                        $completedSubTests = \App\Models\AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)
-                            ->where('is_finished', 1)
-                            ->count();
+                        $completedSubTests = $completedSubTestCounts->get($typeAttempt->id, 0);
                         
-                        $totalSubTests = $typeTest->subTests()->count();
+                        $totalSubTests = $typeTest->subTests->count();
                         
                         if ($totalSubTests > 0 && $completedSubTests >= $totalSubTests) {
                             $completedTypeTests++;
@@ -145,7 +164,7 @@ class UserTestController extends Controller
             }
         }
         
-        $totalDurationAllTests = $tests->sum('total_duration');
+        $totalDurationAllTests = $tests->sum(fn (Tests $test) => $test->subtests->sum('duration'));
         return view('user.tests', compact('tests', 'totalDurationAllTests'));
     }
 
