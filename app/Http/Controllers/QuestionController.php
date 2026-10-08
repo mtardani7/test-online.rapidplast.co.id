@@ -23,6 +23,23 @@ class QuestionController extends Controller
         return $subTest->questions()->whereKey($question->getKey())->firstOrFail();
     }
 
+    public function create(Tests $test, TypeTests $typeTest, SubTests $subTest)
+    {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
+        return redirect()->route('question.index', [$test->slug, $typeTest->slug, $subTest->slug])
+            ->with('error_type', 'create');
+    }
+
+    public function edit(Tests $test, TypeTests $typeTest, SubTests $subTest, Questions $question)
+    {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $question = $this->questionInSubTest($subTest, $question);
+
+        return redirect()->route('question.index', [$test->slug, $typeTest->slug, $subTest->slug])
+            ->with('error_type', 'edit_' . $question->id);
+    }
+
     public function index(Tests $test, TypeTests $typeTest, SubTests $subTest, Request $request)
     {
         $this->assertHierarchy($test, $typeTest, $subTest);

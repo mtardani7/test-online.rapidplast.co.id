@@ -13,6 +13,18 @@ use Illuminate\Support\Facades\Validator;
 
 class HomeController extends Controller
 {
+    public function create()
+    {
+        return redirect()->route('test.index')->with('error_type', 'create');
+    }
+
+    public function edit($id)
+    {
+        $test = Tests::findOrFail($id);
+
+        return redirect()->route('test.index')->with('error_type', 'edit_' . $test->id);
+    }
+
     public function index()
     {
         $tests = Tests::all();

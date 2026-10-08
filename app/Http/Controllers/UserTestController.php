@@ -501,6 +501,9 @@ class UserTestController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
+        $typeTest = $subTest->typeTest;
+        abort_unless($typeTest && (int) $typeTest->tests_id === (int) $test->id, 404);
+
         $result = $this->shuffleService->getShuffledOrder($user, $test, $subTest);
 
         return response()->json([
@@ -549,15 +552,15 @@ class UserTestController extends Controller
             $correctCount = 0;
             $wrongCount   = 0;
 
-            foreach ($questions as $question) {
-                $chosen = $answersInput[$question->id] ?? null;
+            $questionsById = $questions->keyBy('id');
+            foreach ($answersInput as $questionId => $chosen) {
+                $question = $questionsById->get((int) $questionId);
+                if (!$question) {
+                    continue;
+                }
 
                 $isCorrect = $chosen !== null
                     && $chosen == $question->correct_option_id;
-
-                if ($chosen !== null) {
-                    $isCorrect ? $correctCount++ : $wrongCount++;
-                }
 
                 $upserts[] = [
                     'attempt_id' => $attemptId,
@@ -568,11 +571,21 @@ class UserTestController extends Controller
                     'updated_at' => $now,
                 ];
             }
-            AttemptAnswer::upsert(
-                $upserts,
-                ['attempt_id', 'question_id'],
-                ['answer', 'is_correct', 'updated_at']
-            );
+            if ($upserts !== []) {
+                AttemptAnswer::upsert(
+                    $upserts,
+                    ['attempt_id', 'question_id'],
+                    ['answer', 'is_correct', 'updated_at']
+                );
+            }
+
+            $persistedAnswers = AttemptAnswer::query()
+                ->where('attempt_id', $attemptId)
+                ->whereIn('question_id', $questions->pluck('id'))
+                ->whereNotNull('answer')
+                ->get(['is_correct']);
+            $correctCount = $persistedAnswers->where('is_correct', true)->count();
+            $wrongCount = $persistedAnswers->where('is_correct', false)->count();
             $subAttempt->update([
                 'correct_count' => $correctCount,
                 'wrong_count' => $wrongCount,

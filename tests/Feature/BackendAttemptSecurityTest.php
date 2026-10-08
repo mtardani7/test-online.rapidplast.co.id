@@ -12,6 +12,7 @@ use App\Models\TypeTests;
 use App\Models\User;
 use App\Services\AttemptService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -112,6 +113,103 @@ class BackendAttemptSecurityTest extends TestCase
         $attempt = Attempt::where('user_id', $user->id)->where('test_id', $test->id)->firstOrFail();
         $this->assertSame(1, (int) $attempt->total_correct);
         $this->assertNotSame(999999, (int) $attempt->score);
+    }
+
+    public function test_submit_all_preserves_omitted_answers_and_null_clears_only_submitted_question(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $type, $sub] = $this->makeHierarchy('partial-submit');
+        [$questionOne, $optionOne] = $this->makeQuestionWithChoices($sub, 'Question one');
+        [$questionTwo, $optionTwo, $optionTwoC] = $this->makeQuestionWithChoices($sub, 'Question two');
+        $url = route('user.questions.submit-all', [$test->slug, $type->slug, $sub->slug]);
+
+        $this->actingAs($user)->post(route('user.questions.submit-single', [$test->slug, $type->slug, $sub->slug]), [
+            'question_id' => $questionOne->id, 'answer' => $optionOne->id,
+        ])->assertRedirect();
+        $this->post(route('user.questions.submit-single', [$test->slug, $type->slug, $sub->slug]), [
+            'question_id' => $questionTwo->id, 'answer' => $optionTwo->id,
+        ])->assertRedirect();
+
+        $this->post($url, ['answers' => [$questionTwo->id => $optionTwoC->id]])->assertRedirect();
+        $this->assertDatabaseHas('attempt_answers', ['question_id' => $questionOne->id, 'answer' => (string) $optionOne->id]);
+        $this->assertDatabaseHas('attempt_answers', ['question_id' => $questionTwo->id, 'answer' => (string) $optionTwoC->id]);
+        $this->assertDatabaseHas('attempt_sub_tests', [
+            'sub_test_id' => $sub->id, 'correct_count' => 1, 'wrong_count' => 1,
+        ]);
+
+        [$test2, $type2, $sub2] = $this->makeHierarchy('null-submit');
+        [$questionNull, $optionNull] = $this->makeQuestionWithChoices($sub2, 'Question null');
+        $url2 = route('user.questions.submit-all', [$test2->slug, $type2->slug, $sub2->slug]);
+        $this->post(route('user.questions.submit-single', [$test2->slug, $type2->slug, $sub2->slug]), [
+            'question_id' => $questionNull->id, 'answer' => $optionNull->id,
+        ])->assertRedirect();
+        $this->post($url2, ['answers' => [$questionNull->id => null]])->assertRedirect();
+        $this->assertDatabaseHas('attempt_answers', ['question_id' => $questionNull->id, 'answer' => null, 'is_correct' => false]);
+    }
+
+    public function test_question_create_and_edit_routes_use_existing_index_flow_and_validate_hierarchy(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$testA, $typeA, $subA] = $this->makeHierarchy('question-route-a');
+        [, , $subB] = $this->makeHierarchy('question-route-b');
+        $questionB = $this->makeQuestion($subB, 'Question B');
+        $this->actingAs($admin);
+
+        $this->get(route('question.create', [$testA->slug, $typeA->slug, $subA->slug]))
+            ->assertRedirect(route('question.index', [$testA->slug, $typeA->slug, $subA->slug]));
+        $this->get(route('question.edit', [$testA->slug, $typeA->slug, $subA->slug, $questionB->id]))->assertNotFound();
+        $questionA = $this->makeQuestion($subA, 'Question A');
+        $this->get(route('question.edit', [$testA->slug, $typeA->slug, $subA->slug, $questionA->id]))
+            ->assertRedirect(route('question.index', [$testA->slug, $typeA->slug, $subA->slug]));
+    }
+
+    public function test_home_create_and_edit_routes_reuse_existing_test_management_view(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$test] = $this->makeHierarchy('home-route');
+        $this->actingAs($admin);
+
+        $this->get(route('test.create'))->assertRedirect(route('test.index'));
+        $this->get(route('test.edit', $test->id))->assertRedirect(route('test.index'));
+        $this->get(route('test.edit', 999999))->assertNotFound();
+    }
+
+    public function test_shuffled_order_rejects_subtest_from_another_test(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$testA, , $subA] = $this->makeHierarchy('shuffle-a');
+        [, , $subB] = $this->makeHierarchy('shuffle-b');
+        $this->actingAs($user);
+        $controller = app(\App\Http\Controllers\UserTestController::class);
+
+        $allowed = $controller->getShuffledOrder(Request::create('/'), $testA, $subA);
+        $this->assertSame(200, $allowed->getStatusCode());
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $controller->getShuffledOrder(Request::create('/'), $testA, $subB);
+    }
+
+    public function test_question_routes_enforce_all_three_levels_of_test_hierarchy(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$testA, $typeA, $subA] = $this->makeHierarchy('hierarchy-route-a');
+        [, , $subB] = $this->makeHierarchy('hierarchy-route-b');
+        $typeBId = DB::table('type_tests')->insertGetId([
+            'tests_id' => $testA->id, 'name' => 'Type B', 'slug' => 'type-b-under-a',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $subUnderTypeBId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeBId, 'name' => 'Sub under B', 'slug' => 'sub-under-b',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $typeB = TypeTests::findOrFail($typeBId);
+        $subUnderTypeB = SubTests::findOrFail($subUnderTypeBId);
+        $question = $this->makeQuestion($subA, 'Scoped question');
+        $this->actingAs($admin);
+
+        $this->get(route('question.edit', [$testA->slug, $typeA->slug, $subA->slug, $question->id]))->assertRedirect();
+        $this->get(route('question.edit', [$testA->slug, $typeA->slug, $subB->slug, $question->id]))->assertNotFound();
+        $this->get(route('question.edit', [$testA->slug, $typeB->slug, $subA->slug, $question->id]))->assertNotFound();
+        $this->get(route('question.edit', [$testA->slug, $typeB->slug, $subUnderTypeB->slug, $question->id]))->assertNotFound();
     }
 
     public function test_submit_all_rejects_question_from_another_subtest(): void
