@@ -333,7 +333,7 @@ class UserTestController extends Controller
 
         $attempt = $this->attemptService->getOrCreateAttempt($test);
         $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
-        $subAttempt  = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
+        $subAttempt  = $this->attemptService->openSubTestAttempt($typeAttempt, $subTest);
 
         if ($subAttempt->is_finished) {
             return redirect()
@@ -370,6 +370,7 @@ class UserTestController extends Controller
                 $typeTest,
                 $subTest,
                 $attempt,
+                $subAttempt,
                 $allQuestions,
                 $answers,
                 $request,
@@ -437,6 +438,7 @@ class UserTestController extends Controller
             'totalQuestions' => $questions->count(),
             'previousAnswer' => $previousAnswer,
             'attempt' => $attempt,
+            'subTestExpiresAt' => $subAttempt->expires_at,
             'selectedRange' => $selectedRange,
             'rangeProgress' => $rangeProgress,
             'allQuestions' => $allQuestions,
@@ -474,7 +476,7 @@ class UserTestController extends Controller
         return 1;
     }
 
-    private function handleNoRanges($test, $typeTest, $subTest, $attempt, $allQuestions, $answers, $request, $isShuffle, $questionIdToNumber)
+    private function handleNoRanges($test, $typeTest, $subTest, $attempt, $subAttempt, $allQuestions, $answers, $request, $isShuffle, $questionIdToNumber)
     {
         $questions = $allQuestions;
         $totalQuestions = $allQuestions->count();
@@ -504,6 +506,7 @@ class UserTestController extends Controller
             'totalQuestions' => $totalQuestions,
             'previousAnswer' => $previousAnswer,
             'attempt' => $attempt,
+            'subTestExpiresAt' => $subAttempt->expires_at,
             'selectedRange' => null,
             'answeredQuestions' => $answeredQuestions,
             'allQuestions' => $allQuestions,
@@ -535,6 +538,10 @@ class UserTestController extends Controller
             ->firstOrFail();
 
         abort_if($subAttempt->is_finished, 404);
+        $subAttempt = $this->attemptService->ensureSubTestDeadline($subAttempt, $subTest);
+        if ($this->attemptService->isSubTestExpired($subAttempt)) {
+            return response()->json(['error' => 'Waktu pengerjaan subtest telah habis.'], 409);
+        }
 
         $allQuestions = $subTest->questions()
             ->select('id')
@@ -604,6 +611,7 @@ class UserTestController extends Controller
             'question_number' => $questionNumber,
             'question_index' => $currentQuestionIndex,
             'total_questions' => $totalQuestions,
+            'expires_at' => $subAttempt->expires_at?->toIso8601String(),
         ]);
     }
 
@@ -643,17 +651,15 @@ class UserTestController extends Controller
         $questions = $subTest->questions()
             ->select('id', 'correct_option_id')
             ->get();
-        $answersInput = $this->validatedAnswers($request, $subTest, $questions);
-
         $user = Auth::user();
 
-        return DB::transaction(function () use ($test, $typeTest, $subTest, $user, $questions, $answersInput) {
+        return DB::transaction(function () use ($request, $test, $typeTest, $subTest, $user, $questions) {
             $attempt = $this->attemptService->getOrCreateAttempt($test);
             $attemptId = $attempt->id;
 
             $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
-            $createdSubAttempt = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
-            $subAttempt = AttemptSubTest::whereKey($createdSubAttempt->id)->lockForUpdate()->firstOrFail();
+            $subAttempt = $this->attemptService->openSubTestAttempt($typeAttempt, $subTest);
+            $subAttempt = AttemptSubTest::whereKey($subAttempt->id)->lockForUpdate()->firstOrFail();
 
             abort_unless((int) $attempt->user_id === (int) $user->id, 404);
 
@@ -666,6 +672,36 @@ class UserTestController extends Controller
                     ->with('info', 'Subtest ini sudah diselesaikan sebelumnya.');
             }
             $now = now();
+
+            if ($this->attemptService->isSubTestExpired($subAttempt, $now)) {
+                $answerStatistics = AttemptAnswer::query()
+                    ->where('attempt_id', $attemptId)
+                    ->whereIn('question_id', $questions->pluck('id'))
+                    ->whereNotNull('answer')
+                    ->selectRaw(
+                        'SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, '
+                        . 'SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) AS wrong_count'
+                    )
+                    ->first();
+                $subAttempt->update([
+                    'correct_count' => (int) ($answerStatistics->correct_count ?? 0),
+                    'wrong_count' => (int) ($answerStatistics->wrong_count ?? 0),
+                    'is_finished' => 1,
+                    'updated_at' => $now,
+                ]);
+                $scoringService = new \App\Services\ScoringService();
+                $scoringService->calculateSubTestScore($subAttempt);
+                $this->updateFinalStatistics($attempt, $typeAttempt, $subAttempt);
+
+                return redirect()
+                    ->route('user.sub-tests', [
+                        'test' => $test->slug,
+                        'typeTest' => $typeTest->slug,
+                    ])
+                    ->with('info', 'Waktu subtest telah habis. Jawaban yang sudah tersimpan telah dinilai.');
+            }
+
+            $answersInput = $this->validatedAnswers($request, $subTest, $questions);
             $upserts = [];
 
             $correctCount = 0;
@@ -768,8 +804,8 @@ class UserTestController extends Controller
         return DB::transaction(function () use ($test, $typeTest, $subTest, $question, $answer, $user) {
             $attempt = $this->attemptService->getOrCreateAttempt($test);
             $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
-            $createdSubAttempt = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
-            $subAttempt = AttemptSubTest::whereKey($createdSubAttempt->id)->lockForUpdate()->firstOrFail();
+            $subAttempt = $this->attemptService->openSubTestAttempt($typeAttempt, $subTest);
+            $subAttempt = AttemptSubTest::whereKey($subAttempt->id)->lockForUpdate()->firstOrFail();
 
             abort_unless((int) $attempt->user_id === (int) $user->id, 404);
             if ($subAttempt->is_finished) {
@@ -777,6 +813,9 @@ class UserTestController extends Controller
                     'test' => $test->slug,
                     'typeTest' => $typeTest->slug,
                 ])->with('info', 'Subtest ini sudah diselesaikan.');
+            }
+            if ($this->attemptService->isSubTestExpired($subAttempt)) {
+                return response()->json(['error' => 'Waktu pengerjaan subtest telah habis.'], 409);
             }
 
             $isCorrect = $answer !== null && (int) $answer === (int) $question->correct_option_id;

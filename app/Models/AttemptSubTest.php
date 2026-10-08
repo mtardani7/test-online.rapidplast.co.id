@@ -16,7 +16,17 @@ class AttemptSubTest extends Model
         'wrong_count',
         'score',
         'is_finished',
+        'started_at',
+        'expires_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'started_at' => 'immutable_datetime',
+            'expires_at' => 'immutable_datetime',
+        ];
+    }
 
     public function attemptTypeTest()
     {

@@ -323,6 +323,109 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertDatabaseHas('attempt_answers', ['question_id' => $questionNull->id, 'answer' => null, 'is_correct' => false]);
     }
 
+    public function test_subtest_deadline_starts_lazily_once_and_unopened_subtests_remain_unstarted(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('deadline-lazy');
+        $unopenedSubTestId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeTest->id, 'name' => 'Unopened', 'slug' => 'sub-deadline-unopened',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $unopenedSubTest = SubTests::findOrFail($unopenedSubTestId);
+        $service = app(AttemptService::class);
+        $attempt = $service->getOrCreateAttempt($test, $user->id);
+        $typeAttempt = $service->getOrCreateTypeAttempt($attempt, $typeTest);
+        $unopenedTypeAttempt = $service->getOrCreateTypeAttempt($attempt, $unopenedSubTest->typeTest);
+        $unopened = AttemptSubTest::create([
+            'attempt_type_test_id' => $unopenedTypeAttempt->id, 'sub_test_id' => $unopenedSubTest->id,
+        ]);
+
+        $startedAt = now()->startOfSecond();
+        \Illuminate\Support\Carbon::setTestNow($startedAt);
+        try {
+            $subAttempt = $service->getOrCreateSubAttempt($typeAttempt, $subTest);
+            $this->assertNull($subAttempt->started_at, 'Creating pre-initialized attempts must not start the timer.');
+            $subAttempt = $service->openSubTestAttempt($typeAttempt, $subTest);
+            $this->assertSame($startedAt->toDateTimeString(), $subAttempt->started_at->toDateTimeString());
+            $this->assertSame($startedAt->copy()->addMinutes(10)->toDateTimeString(), $subAttempt->expires_at->toDateTimeString());
+            \Illuminate\Support\Carbon::setTestNow($startedAt->copy()->addMinutes(3));
+            $sameAttempt = $service->openSubTestAttempt($typeAttempt, $subTest);
+            $this->assertSame($startedAt->toDateTimeString(), $sameAttempt->started_at->toDateTimeString());
+            $this->assertSame($startedAt->copy()->addMinutes(10)->toDateTimeString(), $sameAttempt->expires_at->toDateTimeString());
+            $this->assertDatabaseCount('attempt_sub_tests', 2);
+            $this->assertNull($unopened->fresh()->started_at);
+            $this->assertNull($unopened->fresh()->expires_at);
+        } finally {
+            \Illuminate\Support\Carbon::setTestNow();
+        }
+    }
+
+    public function test_subtest_deadline_migration_adds_nullable_columns_without_backfilling_existing_rows(): void
+    {
+        $rowId = DB::table('attempt_sub_tests')->insertGetId([
+            'attempt_type_test_id' => 77, 'sub_test_id' => 88, 'score' => 0,
+            'correct_count' => 2, 'wrong_count' => 1, 'is_finished' => false,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        Schema::table('attempt_sub_tests', function (Blueprint $table) {
+            $table->dropColumn(['started_at', 'expires_at']);
+        });
+
+        $migration = require database_path('migrations/2026_10_08_000004_add_deadline_to_attempt_sub_tests.php');
+        $migration->up();
+        $migration->up();
+
+        $this->assertTrue(Schema::hasColumn('attempt_sub_tests', 'started_at'));
+        $this->assertTrue(Schema::hasColumn('attempt_sub_tests', 'expires_at'));
+        $row = DB::table('attempt_sub_tests')->where('id', $rowId)->first();
+        $this->assertNull($row->started_at);
+        $this->assertNull($row->expires_at);
+        $this->assertSame(2, (int) $row->correct_count);
+        $this->assertSame(1, (int) $row->wrong_count);
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('attempt_sub_tests', 'started_at'));
+        $this->assertFalse(Schema::hasColumn('attempt_sub_tests', 'expires_at'));
+    }
+
+    public function test_expired_subtest_rejects_ajax_and_single_answer_but_submit_all_finalizes_saved_answers_only(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('deadline-expired');
+        [$savedQuestion, $savedOption] = $this->makeQuestionWithChoices($subTest, 'Saved answer');
+        [$lateQuestion, $lateOption] = $this->makeQuestionWithChoices($subTest, 'Late answer');
+        $this->actingAs($user);
+        $this->post(route('user.questions.submit-single', [$test->slug, $typeTest->slug, $subTest->slug]), [
+            'question_id' => $savedQuestion->id, 'answer' => $savedOption->id,
+        ])->assertRedirect();
+
+        $subAttempt = AttemptSubTest::query()->firstOrFail();
+        $service = app(AttemptService::class);
+        $deadline = now()->subSecond();
+        $subAttempt->forceFill(['started_at' => $deadline->copy()->subMinutes(10), 'expires_at' => $deadline])->save();
+
+        $this->getJson(route('user.questions.data', [$test->slug, $typeTest->slug, $subTest->slug]) . '?question=1')
+            ->assertStatus(409);
+        $this->postJson(route('user.questions.submit-single', [$test->slug, $typeTest->slug, $subTest->slug]), [
+            'question_id' => $lateQuestion->id, 'answer' => $lateOption->id,
+        ])->assertStatus(409);
+        $this->assertDatabaseMissing('attempt_answers', ['question_id' => $lateQuestion->id]);
+
+        \Illuminate\Support\Carbon::setTestNow(now());
+        try {
+            $this->post(route('user.questions.submit-all', [$test->slug, $typeTest->slug, $subTest->slug]), [
+                'answers' => [$lateQuestion->id => $lateOption->id],
+                'time_remaining' => 999999,
+            ])->assertRedirect();
+        } finally {
+            \Illuminate\Support\Carbon::setTestNow();
+        }
+        $this->assertDatabaseHas('attempt_answers', ['question_id' => $savedQuestion->id, 'answer' => (string) $savedOption->id]);
+        $this->assertDatabaseMissing('attempt_answers', ['question_id' => $lateQuestion->id]);
+        $this->assertTrue((bool) $subAttempt->fresh()->is_finished);
+        $this->assertSame(1, (int) $subAttempt->fresh()->correct_count);
+    }
+
     public function test_questions_no_range_reuses_loaded_answers_and_loads_only_current_choices(): void
     {
         [$user] = $this->makeUserWithRole(null);
@@ -364,6 +467,7 @@ class BackendAttemptSecurityTest extends TestCase
 
         $data = $view->getData();
         $this->assertSame($questions[1]->id, $data['currentQuestion']->id);
+        $this->assertNotNull($data['subTestExpiresAt']);
         $this->assertTrue($data['currentQuestion']->relationLoaded('choices'));
         $this->assertSame([$choices[1]->id], $data['currentQuestion']->choices->pluck('id')->all());
         $this->assertSame($choices[1]->id, (int) $data['previousAnswer']->answer);
@@ -672,7 +776,8 @@ class BackendAttemptSecurityTest extends TestCase
             ->assertOk()
             ->assertJsonPath('question_id', $question->id)
             ->assertJsonPath('question_number', 1)
-            ->assertJsonPath('question_index', 1);
+            ->assertJsonPath('question_index', 1)
+            ->assertJsonPath('expires_at', AttemptSubTest::query()->firstOrFail()->expires_at->toIso8601String());
         $html = $response->json('html');
         $this->assertStringContainsString('data-question-id="' . $question->id . '"', $html);
         $this->assertStringContainsString('AJAX question text', $html);
@@ -830,7 +935,10 @@ class BackendAttemptSecurityTest extends TestCase
         $url = route('user.questions.submit-all', [$test->slug, $type->slug, $sub->slug]);
 
         $this->actingAs($user)->post($url, ['answers' => [$question->id => $optionA->id]])->assertRedirect();
+        $finishedSubAttempt = AttemptSubTest::query()->firstOrFail();
+        $deadline = $finishedSubAttempt->expires_at;
         $this->post($url, ['answers' => [$question->id => $optionB->id]])->assertRedirect();
+        $this->assertSame($deadline->toDateTimeString(), $finishedSubAttempt->fresh()->expires_at->toDateTimeString());
 
         $this->assertDatabaseHas('attempt_answers', [
             'question_id' => $question->id,
@@ -1572,7 +1680,8 @@ class BackendAttemptSecurityTest extends TestCase
         Schema::create('attempt_sub_tests', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('attempt_type_test_id'); $table->unsignedBigInteger('sub_test_id');
             $table->integer('score')->default(0); $table->integer('correct_count')->default(0); $table->integer('wrong_count')->default(0);
-            $table->boolean('is_finished')->default(false); $table->timestamps(); $table->unique(['attempt_type_test_id', 'sub_test_id']);
+            $table->boolean('is_finished')->default(false); $table->timestamp('started_at')->nullable(); $table->timestamp('expires_at')->nullable();
+            $table->timestamps(); $table->unique(['attempt_type_test_id', 'sub_test_id']);
         });
         Schema::create('attempt_answers', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('attempt_id'); $table->unsignedBigInteger('question_id');
