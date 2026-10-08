@@ -226,8 +226,8 @@ class BackendAttemptSecurityTest extends TestCase
         try {
             $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeBId]), $testA, $typeA, $subA);
             $this->fail('A range owned by another subtest must be rejected.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
-            $this->assertSame(404, $exception->getStatusCode());
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+            $this->assertSame(\App\Models\SubtestInstructionRange::class, $exception->getModel());
         }
 
         try {
