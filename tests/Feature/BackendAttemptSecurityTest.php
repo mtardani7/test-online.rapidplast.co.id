@@ -468,6 +468,12 @@ class BackendAttemptSecurityTest extends TestCase
         $data = $view->getData();
         $this->assertSame($questions[1]->id, $data['currentQuestion']->id);
         $this->assertNotNull($data['subTestExpiresAt']);
+        $this->assertNotNull($data['serverNow']);
+        $renderedPage = $view->render();
+        $this->assertStringContainsString($data['subTestExpiresAt']->toIso8601String(), $renderedPage);
+        $this->assertStringContainsString($data['serverNow']->toIso8601String(), $renderedPage);
+        $this->assertStringNotContainsString('loadTimerFromStorage', $renderedPage);
+        $this->assertStringNotContainsString('end_time_range_', $renderedPage);
         $this->assertTrue($data['currentQuestion']->relationLoaded('choices'));
         $this->assertSame([$choices[1]->id], $data['currentQuestion']->choices->pluck('id')->all());
         $this->assertSame($choices[1]->id, (int) $data['previousAnswer']->answer);
@@ -777,7 +783,8 @@ class BackendAttemptSecurityTest extends TestCase
             ->assertJsonPath('question_id', $question->id)
             ->assertJsonPath('question_number', 1)
             ->assertJsonPath('question_index', 1)
-            ->assertJsonPath('expires_at', AttemptSubTest::query()->firstOrFail()->expires_at->toIso8601String());
+            ->assertJsonPath('expires_at', AttemptSubTest::query()->firstOrFail()->expires_at->toIso8601String())
+            ->assertJsonStructure(['server_now']);
         $html = $response->json('html');
         $this->assertStringContainsString('data-question-id="' . $question->id . '"', $html);
         $this->assertStringContainsString('AJAX question text', $html);

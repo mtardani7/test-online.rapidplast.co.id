@@ -439,6 +439,7 @@ class UserTestController extends Controller
             'previousAnswer' => $previousAnswer,
             'attempt' => $attempt,
             'subTestExpiresAt' => $subAttempt->expires_at,
+            'serverNow' => now(),
             'selectedRange' => $selectedRange,
             'rangeProgress' => $rangeProgress,
             'allQuestions' => $allQuestions,
@@ -507,6 +508,7 @@ class UserTestController extends Controller
             'previousAnswer' => $previousAnswer,
             'attempt' => $attempt,
             'subTestExpiresAt' => $subAttempt->expires_at,
+            'serverNow' => now(),
             'selectedRange' => null,
             'answeredQuestions' => $answeredQuestions,
             'allQuestions' => $allQuestions,
@@ -612,6 +614,7 @@ class UserTestController extends Controller
             'question_index' => $currentQuestionIndex,
             'total_questions' => $totalQuestions,
             'expires_at' => $subAttempt->expires_at?->toIso8601String(),
+            'server_now' => now()->toIso8601String(),
         ]);
     }
 

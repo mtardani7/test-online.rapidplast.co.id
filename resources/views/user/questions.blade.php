@@ -406,7 +406,6 @@
 (function() {
     const MAX_FOCUS_LOSS = 3; 
     let focusLossCount = 0;
-    let focusPaused = false;
     function showToast(message, duration = 3000) {
         const id = 'focus-toast';
         let t = document.getElementById(id);
@@ -429,22 +428,6 @@
             setTimeout(() => t.remove(), 250);
         }, duration);
     }
-    function pauseTimerForFocusLoss() {
-        if (typeof timerInterval !== 'undefined' && timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            focusPaused = true;
-        }
-        saveTimerToStorage();
-    }
-    function resumeTimerAfterFocus() {
-        if (focusPaused) {
-            loadTimerFromStorage();
-            updateTimerDisplay();
-            if (timeLeft > 0) startTimer();
-            focusPaused = false;
-        }
-    }
     async function handleExcessFocusLoss() {
         showToast('Terlalu sering berpindah tab — jawaban akan dikirim otomatis.', 5000);
         try {
@@ -456,21 +439,14 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             focusLossCount++;
-            pauseTimerForFocusLoss();
             showToast(`Anda meninggalkan tab (${focusLossCount}/${MAX_FOCUS_LOSS})`, 4000);
             if (focusLossCount >= MAX_FOCUS_LOSS) handleExcessFocusLoss();
-        } else {
-            resumeTimerAfterFocus();
         }
     });
     window.addEventListener('blur', () => {
         focusLossCount++;
-        pauseTimerForFocusLoss();
         showToast(`Anda kehilangan fokus (${focusLossCount}/${MAX_FOCUS_LOSS})`, 3000);
         if (focusLossCount >= MAX_FOCUS_LOSS) handleExcessFocusLoss();
-    });
-    window.addEventListener('focus', () => {
-        resumeTimerAfterFocus();
     });
     document.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
@@ -546,6 +522,7 @@ document.addEventListener("keydown", function(e) {
     let isQuestionNavigating = false;
     let questionNavigationController = null;
     let questionNavigationRequestId = 0;
+    let isTimeExpired = false;
     
     @if(isset($allRanges) && isset($selectedRange))
         @php
@@ -563,7 +540,14 @@ document.addEventListener("keydown", function(e) {
 
     let timerInterval = null;
     let timeLeft = 0;
-    let isTimerPaused = false;
+    const deadlineExpiresAt = @json($subTestExpiresAt?->toIso8601String());
+    const serverNow = @json($serverNow->toIso8601String());
+    const serverNowMs = Date.parse(serverNow);
+    const deadlineMs = Date.parse(deadlineExpiresAt);
+    const initialClientNowMs = Date.now();
+    const serverClockOffsetMs = serverNowMs - initialClientNowMs;
+    const serverTimeAtSyncMs = initialClientNowMs + serverClockOffsetMs;
+    const monotonicTimeAtSyncMs = performance.now();
 
     const subTestDuration = {{ $subTest->duration ?? 15 }};
     const QUESTION_NUMBER_MAP = @json($questionIdToNumber ?? []);
@@ -578,12 +562,6 @@ document.addEventListener("keydown", function(e) {
     function getAnswerStorageKey(questionId) {
         return `${getExamStoragePrefix()}answer_${questionId}`;
     }
-    function getTimerStorageKey(rangeId) {
-        return `${getExamStoragePrefix()}timer_range_${rangeId ?? 'all'}`;
-    }
-    function getEndTimeStorageKey(rangeId) {
-        return `${getExamStoragePrefix()}end_time_range_${rangeId ?? 'all'}`;
-    }
     function isExamStorageKey(key) {
         return typeof key === 'string' && key.startsWith(getExamStoragePrefix());
     }
@@ -597,16 +575,6 @@ document.addEventListener("keydown", function(e) {
         }
         examState.answers = Object.create(null);
         examState.answeredQuestions.clear();
-    }
-    function clearExamTimerStorage() {
-        const timerPrefix = `${getExamStoragePrefix()}timer_`;
-        const endTimePrefix = `${getExamStoragePrefix()}end_time_`;
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (isExamStorageKey(key) && (key.startsWith(timerPrefix) || key.startsWith(endTimePrefix))) {
-                localStorage.removeItem(key);
-            }
-        }
     }
     function loadExamStateFromStorage() {
         examState.answers = Object.create(null);
@@ -655,60 +623,19 @@ document.addEventListener("keydown", function(e) {
 
     function getRangeDurationSeconds(rangeId) {
         if (!rangeId) return subTestDuration * 60;
-        const r = ALL_RANGES.find(x => x.id == rangeId);
-        if (!r) return subTestDuration * 60;
-        const cnt = countQuestionsInRange(r.start, r.end);
-        return Math.max(1, Math.round(cnt * PER_QUESTION_SECONDS));
+        const range = ALL_RANGES.find(item => item.id == rangeId);
+        if (!range) return subTestDuration * 60;
+        return Math.max(1, Math.round(countQuestionsInRange(range.start, range.end) * PER_QUESTION_SECONDS));
     }
 
-    function loadTimerFromStorage(rangeId = currentRangeId) {
-        const endKey = getEndTimeStorageKey(rangeId);
-        const savedEndTime = localStorage.getItem(endKey);
-
-        if (savedEndTime) {
-            const now = Date.now();
-            const endTime = parseInt(savedEndTime);
-            if (endTime > now) {
-                timeLeft = Math.floor((endTime - now) / 1000);
-                if (timeLeft < 0) timeLeft = 0;
-                return;
-            } else {
-                timeLeft = 0;
-                return;
-            }
-        }
-        const dur = getRangeDurationSeconds(rangeId);
-        timeLeft = dur;
-        const endTime = Date.now() + (timeLeft * 1000);
-        localStorage.setItem(endKey, endTime.toString());
-        localStorage.setItem(getTimerStorageKey(rangeId), timeLeft.toString());
+    function getCurrentServerTimeMs() {
+        return serverTimeAtSyncMs + (performance.now() - monotonicTimeAtSyncMs);
     }
 
-    function saveTimerToStorage(rangeId = currentRangeId) {
-        if (timeLeft <= 0) return;
-        const endTime = Date.now() + (timeLeft * 1000);
-        localStorage.setItem(getEndTimeStorageKey(rangeId), endTime.toString());
-        localStorage.setItem(getTimerStorageKey(rangeId), timeLeft.toString());
+    function getRemainingSeconds() {
+        if (!Number.isFinite(deadlineMs) || !Number.isFinite(serverNowMs)) return 0;
+        return Math.max(0, Math.ceil((deadlineMs - getCurrentServerTimeMs()) / 1000));
     }
-
-    function clearTimerStorage() {
-        clearExamTimerStorage();
-    }
-    function clearTimerForRange(rangeId) {
-        if (rangeId === null || typeof rangeId === 'undefined') return;
-        try {
-            localStorage.removeItem(getTimerStorageKey(rangeId));
-            localStorage.removeItem(getEndTimeStorageKey(rangeId));
-        } catch (e) {}
-    }
-    function findNextRangeId(rangeId) {
-        if (!rangeId) return null;
-        const idx = ALL_RANGES.findIndex(r => r.id == rangeId);
-        if (idx === -1) return null;
-        const next = ALL_RANGES[idx + 1];
-        return next ? next.id : null;
-    }
-
     function setQuestionNavigationLoading(isLoading) {
         isQuestionNavigating = isLoading;
         const questionContent = document.getElementById('questionContent');
@@ -724,12 +651,13 @@ document.addEventListener("keydown", function(e) {
 
         ['previousQuestionBtn', 'nextQuestionBtn', 'submitAllBtn'].forEach(id => {
             const button = document.getElementById(id);
-            if (button) button.disabled = isLoading;
+            if (button) button.disabled = isLoading || isTimeExpired;
         });
         document.querySelectorAll('.question-dot').forEach(dot => {
-            dot.setAttribute('aria-disabled', isLoading ? 'true' : 'false');
-            dot.classList.toggle('pointer-events-none', isLoading);
-            dot.classList.toggle('opacity-50', isLoading);
+            const disabled = isLoading || isTimeExpired;
+            dot.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            dot.classList.toggle('pointer-events-none', disabled);
+            dot.classList.toggle('opacity-50', disabled);
         });
     }
 
@@ -740,6 +668,14 @@ document.addEventListener("keydown", function(e) {
         if (previousButton) previousButton.classList.toggle('hidden', currentQuestionNumber <= 1);
         if (nextButton) nextButton.classList.toggle('hidden', currentQuestionNumber >= totalQuestions);
         if (submitButton) submitButton.classList.toggle('hidden', currentQuestionNumber < totalQuestions);
+        [previousButton, nextButton, submitButton].forEach(button => {
+            if (button) button.disabled = isTimeExpired || isQuestionNavigating;
+        });
+        document.querySelectorAll('.question-dot').forEach(dot => {
+            dot.setAttribute('aria-disabled', isTimeExpired ? 'true' : 'false');
+            dot.classList.toggle('pointer-events-none', isTimeExpired);
+            dot.classList.toggle('opacity-50', isTimeExpired);
+        });
     }
 
     function updateQuestionUrl(questionNumber, rangeId, method = 'push') {
@@ -758,6 +694,13 @@ document.addEventListener("keydown", function(e) {
             ? null
             : Number(rangeId);
         if (!Number.isInteger(requestedQuestion) || requestedQuestion < 1) return false;
+        if (isTimeExpired || getRemainingSeconds() <= 0) {
+            handleTimeUp();
+            if (options.history === 'none') {
+                updateQuestionUrl(QUESTION_NUMBER_MAP[currentQuestionId], currentRangeId, 'replace');
+            }
+            return false;
+        }
         if (isQuestionNavigating && !options.force) return false;
 
         if (isQuestionNavigating && questionNavigationController) {
@@ -771,7 +714,6 @@ document.addEventListener("keydown", function(e) {
         }
 
         saveAnswerToLocalStorage(false);
-        saveTimerToStorage();
         setQuestionNavigationLoading(true);
 
         const requestId = ++questionNavigationRequestId;
@@ -790,10 +732,17 @@ document.addEventListener("keydown", function(e) {
                 },
                 signal: controller.signal,
             });
+            if (response.status === 409) {
+                handleTimeUp();
+                return false;
+            }
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const questionData = await response.json();
             if (!questionData.html || !questionData.question_id || requestId !== questionNavigationRequestId) {
                 throw new Error('Invalid question response');
+            }
+            if (!questionData.expires_at || Date.parse(questionData.expires_at) !== deadlineMs) {
+                throw new Error('Server mengirim deadline subtest yang berbeda.');
             }
 
             const questionContent = document.getElementById('questionContent');
@@ -838,7 +787,7 @@ document.addEventListener("keydown", function(e) {
             if (options.history !== 'none') updateQuestionUrl(requestedQuestion, normalizedRangeId, options.history || 'push');
             return true;
         } catch (error) {
-            if (error.name !== 'AbortError') {
+            if (error.name !== 'AbortError' && !isTimeExpired) {
                 console.error('Question navigation error:', error);
                 const errorIndicator = document.getElementById('questionNavigationError');
                 if (errorIndicator) errorIndicator.classList.remove('hidden');
@@ -856,11 +805,13 @@ document.addEventListener("keydown", function(e) {
     }
 
     function formatTime(seconds) {
+        seconds = Math.max(0, Math.floor(Number(seconds) || 0));
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
     function updateTimerDisplay() {
+        timeLeft = getRemainingSeconds();
         const timerElement = document.getElementById('timer');
         const timeRemainingInput = document.getElementById('timeRemaining');
         
@@ -873,43 +824,40 @@ document.addEventListener("keydown", function(e) {
         }
     }
     function startTimer() {
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
-        
-        timerInterval = setInterval(() => {
-            if (timeLeft <= 0) {
+        if (timerInterval || isTimeExpired) return;
+        const tick = () => {
+            const previousTimeLeft = timeLeft;
+            updateTimerDisplay();
+            if (timeLeft === 0) {
                 clearInterval(timerInterval);
+                timerInterval = null;
                 handleTimeUp();
                 return;
             }
-            
-            timeLeft--;
-            updateTimerDisplay();
-            
-            if (timeLeft === 300 || timeLeft === 60 || timeLeft === 30 || timeLeft === 10) {
+            if (previousTimeLeft > timeLeft && [300, 60, 30, 10].includes(timeLeft)) {
                 showTimeWarning(timeLeft);
             }
-            
-        }, 1000);
+        };
+        tick();
+        if (!isTimeExpired) timerInterval = setInterval(tick, 1000);
     }
     function handleTimeUp() {
+        if (isTimeExpired) return;
+        saveAnswerToLocalStorage(false);
+        isTimeExpired = true;
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = null;
+        timeLeft = 0;
         updateTimerDisplay();
-        const nextRangeIdLocal = findNextRangeId(currentRangeId);
-        if (nextRangeIdLocal) {
-            clearTimerForRange(currentRangeId);
-            let nextStartNum = 1;
-            const nextRange = ALL_RANGES.find(r => r.id == nextRangeIdLocal);
-            if (nextRange) {
-                const mapped = QUESTION_NUMBER_MAP[nextRange.start];
-                if (mapped) nextStartNum = mapped;
-            }
-            window.location.href = "{{ route('user.questions', ['test' => $test->slug, 'typeTest' => $typeTest->slug, 'subTest' => $subTest->slug]) }}" + "?question=" + nextStartNum + "&range_id=" + nextRangeIdLocal + "&auto_range_switch=1";
-            return;
+        const navigationError = document.getElementById('questionNavigationError');
+        if (navigationError) {
+            navigationError.textContent = 'Waktu pengerjaan telah habis. Jawaban yang sudah tersimpan sedang difinalisasi.';
+            navigationError.classList.remove('hidden');
         }
-        if (!isSubmitting) {
-            submitAllAnswersAuto();
-        }
+        document.querySelectorAll('#questionContent input[name="answer"]').forEach(input => input.disabled = true);
+        document.getElementById('confirmSubmitModal')?.classList.add('hidden');
+        updateQuestionNavigationControls();
+        submitAllAnswersAuto();
     }
     async function submitAllAnswersAuto() {
         if (isSubmitting) return;
@@ -945,16 +893,19 @@ document.addEventListener("keydown", function(e) {
                 }
             });
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const error = new Error(`HTTP error! status: ${response.status}`);
+                error.status = response.status;
+                throw error;
             }
             clearExamAnswerStorage();
-            clearTimerStorage();
             window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?time_up=true";
             
         } catch (error) {
             console.error('Auto submit error:', error);
             isSubmitting = false;
-            window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?time_up=true&error=auto_submit_failed";
+            showErrorModal(error.status === 409
+                ? 'Waktu telah habis. Jawaban lokal tetap tersimpan; coba kirim ulang untuk menyelesaikan subtest.'
+                : 'Pengiriman otomatis gagal. Jawaban lokal tetap tersimpan; coba kirim ulang.');
         }
         isSubmitting = false;
     }
@@ -1058,11 +1009,12 @@ document.addEventListener("keydown", function(e) {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const error = new Error(`HTTP error! status: ${response.status}`);
+                error.status = response.status;
+                throw error;
             }
 
             clearExamAnswerStorage();
-            clearTimerStorage();
 
             window.location.href =
                 "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?submitted=true";
@@ -1072,6 +1024,11 @@ document.addEventListener("keydown", function(e) {
             confirmSubmitBtn.innerHTML = originalButtonText;
             confirmSubmitBtn.disabled = false;
             isSubmitting = false;
+            if (error.status === 409) {
+                if (isTimeExpired) submitAllAnswersAuto();
+                else handleTimeUp();
+                return;
+            }
             showErrorModal('Error mengirim jawaban: ' + error.message);
         }
     }
@@ -1121,6 +1078,7 @@ document.addEventListener("keydown", function(e) {
     }
 
     function saveAnswerToLocalStorage(skipped = false) {
+        if (isTimeExpired) return '';
         const selectedAnswer = document.querySelector('input[name="answer"]:checked');
         const answerData = {
             question_id: currentQuestionId,
@@ -1146,6 +1104,10 @@ document.addEventListener("keydown", function(e) {
     }
     
     function navigateToNextQuestion() {
+        if (isTimeExpired || getRemainingSeconds() <= 0) {
+            handleTimeUp();
+            return;
+        }
         if (currentQuestionNumber >= totalQuestions) {
             const allAnsweredInRange = examState.answeredQuestions.size >= totalQuestions;
 
@@ -1214,6 +1176,10 @@ document.addEventListener("keydown", function(e) {
     function bindQuestionAnswerEvents() {
         document.querySelectorAll('#questionContent input[name="answer"]').forEach(radio => {
             radio.addEventListener('change', function() {
+                if (isTimeExpired || getRemainingSeconds() <= 0) {
+                    handleTimeUp();
+                    return;
+                }
                 hasUnsavedChanges = true;
                 updateSaveStatus('saving');
                 saveAnswerToLocalStorage(false);
@@ -1291,14 +1257,6 @@ document.addEventListener("keydown", function(e) {
             question: QUESTION_NUMBER_MAP[currentQuestionId],
             rangeId: currentRangeId,
         }, '', window.location.href);
-        loadTimerFromStorage(currentRangeId);
-        updateTimerDisplay();
-
-        if (timeLeft > 0) {
-            startTimer();
-        } else {
-            handleTimeUp();
-        }
         (function showSelectedRangeDurationUI(){
             const selId = currentRangeId;
             const selSeconds = getRangeDurationSeconds(selId);
@@ -1344,7 +1302,7 @@ document.addEventListener("keydown", function(e) {
         const nextQuestionBtn = document.getElementById('nextQuestionBtn');
         if (nextQuestionBtn) {
             nextQuestionBtn.addEventListener('click', function() {
-                if (isQuestionNavigating) return;
+                if (isQuestionNavigating || isTimeExpired) return;
                 if (!document.querySelector('#questionContent input[name="answer"]:checked')) {
                     document.getElementById('noAnswerModal').classList.remove('hidden');
                     return;
@@ -1355,17 +1313,17 @@ document.addEventListener("keydown", function(e) {
         const submitAllBtn = document.getElementById('submitAllBtn');
         if (submitAllBtn) {
             submitAllBtn.addEventListener('click', function() {
+                if (isTimeExpired) return;
                 saveAnswerToLocalStorage(false);
-                saveTimerToStorage();
                 showModalWithUnanswered();
             });
         }
         const skipQuestionBtn = document.getElementById('skipQuestionBtn');
         if (skipQuestionBtn) {
             skipQuestionBtn.addEventListener('click', function() {
+                if (isTimeExpired) return;
                 document.getElementById('noAnswerModal').classList.add('hidden');
                 saveAnswerToLocalStorage(true);
-                saveTimerToStorage();
                 navigateToNextQuestion();
             });
         }
@@ -1378,11 +1336,11 @@ document.addEventListener("keydown", function(e) {
         const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
         if (confirmSubmitBtn) {
             confirmSubmitBtn.addEventListener('click', function() {
+                if (isTimeExpired) return;
                 if (isLastRange || !currentRangeId) {
                     submitAllAnswers();
                 } else {
                     if (nextRangeId) {
-                        saveTimerToStorage();
                         window.location.href = "{{ route('user.questions', ['test' => $test->slug, 'typeTest' => $typeTest->slug, 'subTest' => $subTest->slug]) }}?question=1&range_id=" + nextRangeId;
                     } else {
                         submitAllAnswers();
@@ -1414,7 +1372,7 @@ document.addEventListener("keydown", function(e) {
         document.querySelectorAll('.question-dot').forEach(dot => {
             dot.addEventListener('click', function(e) {
                 e.preventDefault();
-                if (isQuestionNavigating) return;
+                if (isQuestionNavigating || isTimeExpired) return;
                 const targetUrl = new URL(this.href, window.location.href);
                 navigateToQuestion(
                     targetUrl.searchParams.get('question'),
@@ -1426,7 +1384,7 @@ document.addEventListener("keydown", function(e) {
         if (previousQuestionBtn) {
             previousQuestionBtn.addEventListener('click', function(event) {
                 event.preventDefault();
-                if (isQuestionNavigating) return;
+                if (isQuestionNavigating || isTimeExpired) return;
                 const currentGlobalQuestion = QUESTION_NUMBER_MAP[currentQuestionId];
                 navigateToQuestion(currentGlobalQuestion - 1, currentRangeId);
             });
@@ -1440,13 +1398,14 @@ document.addEventListener("keydown", function(e) {
             navigateToQuestion(targetQuestion, targetRangeId, { force: true, history: 'none' });
         });
         document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                saveTimerToStorage();
-            } else {
-                loadTimerFromStorage();
+            if (!document.hidden) {
                 updateTimerDisplay();
+                if (getRemainingSeconds() <= 0) handleTimeUp();
             }
         });
+        updateTimerDisplay();
+        if (getRemainingSeconds() > 0) startTimer();
+        else handleTimeUp();
     });
 
     document.addEventListener('DOMContentLoaded', function() {
