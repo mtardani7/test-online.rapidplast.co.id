@@ -498,6 +498,99 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertSame(4, $typeTests->count());
     }
 
+    public function test_subtest_progress_and_status_reads_are_batched_as_subtest_count_grows(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $firstSubTest] = $this->makeHierarchy('batch-subtest-listing');
+        $attempt = Attempt::create([
+            'user_id' => $user->id, 'test_id' => $test->id,
+            'total_correct' => 0, 'total_question' => 0, 'score' => 0,
+        ]);
+        $typeAttempt = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeTest->id,
+            'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+
+        $seedSubtest = function (SubTests $subTest, bool $finished) use ($attempt, $typeAttempt): void {
+            DB::table('attempt_sub_tests')->insert([
+                'attempt_type_test_id' => $typeAttempt->id, 'sub_test_id' => $subTest->id,
+                'score' => 0, 'correct_count' => 5, 'wrong_count' => 0,
+                'is_finished' => $finished, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            for ($index = 1; $index <= 10; $index++) {
+                $questionId = DB::table('questions')->insertGetId([
+                    'sub_tests_id' => $subTest->id, 'question_text' => "Question {$index}",
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+
+                if ($index <= 5) {
+                    DB::table('attempt_answers')->insert([
+                        'attempt_id' => $attempt->id, 'question_id' => $questionId,
+                        'answer' => 'A', 'is_correct' => true, 'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                }
+            }
+        };
+        $seedSubtest($firstSubTest, true);
+        $this->actingAs($user);
+
+        $capture = false;
+        $readQueryCount = 0;
+        DB::listen(function ($query) use (&$capture, &$readQueryCount) {
+            if (!$capture) {
+                return;
+            }
+
+            $sql = strtolower($query->sql);
+            $isBatchRead = str_contains($sql, 'from "questions"')
+                || str_contains($sql, 'from "attempt_answers"')
+                || (str_contains($sql, 'from "attempt_sub_tests"') && !str_contains($sql, '"sub_test_id"'));
+
+            if ($isBatchRead) {
+                $readQueryCount++;
+            }
+        });
+
+        $capture = true;
+        $smallView = app(\App\Http\Controllers\UserTestController::class)->subTests($test, $typeTest);
+        $capture = false;
+        $smallReadQueryCount = $readQueryCount;
+        $smallSubTest = $smallView->getData()['subTests']->first();
+        $this->assertSame(10, $smallSubTest->total_questions);
+        $this->assertSame(5, $smallSubTest->correct_count);
+        $this->assertEquals(50, $smallSubTest->progress);
+        $this->assertSame(5, $smallSubTest->non_null_answers_count);
+        $this->assertSame(5, $smallSubTest->null_answers_count);
+        $this->assertFalse($smallSubTest->all_answered);
+        $this->assertTrue($smallSubTest->completed);
+        $this->assertTrue($smallView->getData()['allSubTestsCompleted']);
+        $this->assertEquals(50, $smallView->getData()['completionRate']);
+        $this->assertSame(10, (int) $smallView->getData()['totalDuration']);
+
+        foreach ([2, 3, 4] as $index) {
+            $subTestId = DB::table('sub_tests')->insertGetId([
+                'type_tests_id' => $typeTest->id, 'name' => "Subtest {$index}", 'slug' => "batch-subtest-{$index}",
+                'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $seedSubtest(SubTests::findOrFail($subTestId), $index === 3);
+        }
+
+        $readQueryCount = 0;
+        $capture = true;
+        $largeView = app(\App\Http\Controllers\UserTestController::class)->subTests($test->fresh(), $typeTest->fresh());
+        $capture = false;
+        $this->assertSame($smallReadQueryCount, $readQueryCount);
+        $largeSubTests = $largeView->getData()['subTests']->keyBy('id');
+        $this->assertSame(4, $largeSubTests->count());
+        $this->assertEquals(50, $largeSubTests->get($firstSubTest->id)->progress);
+        $this->assertTrue($largeSubTests->get($firstSubTest->id)->completed);
+        $this->assertTrue($largeSubTests->get(3)->completed);
+        $this->assertFalse($largeSubTests->get(4)->completed);
+        $this->assertFalse($largeView->getData()['allSubTestsCompleted']);
+        $this->assertSame(40, (int) $largeView->getData()['totalDuration']);
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table) {
