@@ -11,8 +11,18 @@ use Illuminate\Validation\Rule;
 
 class SubTestController extends Controller
 {
+    private function assertHierarchy(Tests $test, TypeTests $typeTest): void
+    {
+        abort_unless(
+            (int) $typeTest->tests_id === (int) $test->id,
+            404
+        );
+    }
+
     public function index(Tests $test, TypeTests $typeTest)
     {
+        $this->assertHierarchy($test, $typeTest);
+
         $subTests = $typeTest->subTests()->withCount('questions')->latest()->get();
 
         return view('admin.sub-tests.index', compact('test', 'typeTest', 'subTests'));
@@ -20,11 +30,16 @@ class SubTestController extends Controller
 
     public function show(Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
+        $this->assertHierarchy($test, $typeTest);
+        $subTest = $typeTest->subTests()->whereKey($subTest->id)->firstOrFail();
+
         return view('admin.sub-tests.show', compact('test', 'typeTest', 'subTest'));
     }
 
     public function store(Request $request, Tests $test, TypeTests $typeTest)
     {
+        $this->assertHierarchy($test, $typeTest);
+
         $validated = $request->validate([
             'name' => [
                 'required',
@@ -71,6 +86,7 @@ class SubTestController extends Controller
 
     public function update(Request $request, Tests $test, TypeTests $typeTest, $id)
     {
+        $this->assertHierarchy($test, $typeTest);
         $subTest = $typeTest->subTests()->findOrFail($id);
 
         $validated = $request->validate([
@@ -119,6 +135,8 @@ class SubTestController extends Controller
 
     public function destroy(Tests $test, TypeTests $typeTest, $id)
     {
+        $this->assertHierarchy($test, $typeTest);
+
         $typeTest->subTests()->findOrFail($id)->delete();
 
         return redirect()->route('sub-test.index', [$test->slug, $typeTest->slug])->with('success', 'Sub Test berhasil dihapus');

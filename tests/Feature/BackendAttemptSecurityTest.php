@@ -9,6 +9,7 @@ use App\Models\AttemptTypeTest;
 use App\Models\QuestionChoices;
 use App\Models\Questions;
 use App\Models\SubTests;
+use App\Models\SubtestInstructionRange;
 use App\Models\Tests as TestModel;
 use App\Models\TypeTests;
 use App\Models\User;
@@ -773,6 +774,105 @@ class BackendAttemptSecurityTest extends TestCase
         $this->postJson($url, ['question_id' => $question->id, 'answer' => 999999])->assertUnprocessable();
     }
 
+    public function test_type_test_and_subtest_endpoints_reject_cross_parent_resources(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$testA, $typeA, $subA] = $this->makeHierarchy('nested-integrity-a');
+        [$testB, $typeB, $subB] = $this->makeHierarchy('nested-integrity-b');
+        $this->actingAs($admin);
+
+        $this->put(route('type-test.update', [$testA->slug, $typeB]), [
+            'name' => 'Changed Type B', 'description' => 'Changed through wrong parent',
+        ])->assertNotFound();
+        $this->assertDatabaseHas('type_tests', ['id' => $typeB->id, 'name' => $typeB->name]);
+        $this->delete(route('type-test.destroy', [$testA->slug, $typeB]))->assertNotFound();
+        $this->assertDatabaseHas('type_tests', ['id' => $typeB->id]);
+
+        $this->get(route('type-test.index', $testA->slug))->assertOk();
+
+        $subTestController = app(\App\Http\Controllers\SubTestController::class);
+        try {
+            $subTestController->show($testA, $typeA, $subB);
+            $this->fail('A subtest owned by another type must not be shown through this parent.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+            $this->assertSame(SubTests::class, $exception->getModel());
+        }
+        $this->get(route('sub-test.index', [$testB->slug, $typeA->slug]))->assertNotFound();
+        $this->post(route('sub-test.store', [$testB->slug, $typeA->slug]), [
+            'name' => 'Wrong Parent Store', 'description' => 'Rejected', 'duration' => 10,
+        ])->assertNotFound();
+        $this->put(route('sub-test.update', [$testB->slug, $typeA->slug, $subA->id]), [
+            'name' => 'Wrong Parent Update', 'description' => 'Rejected', 'duration' => 10,
+        ])->assertNotFound();
+        $this->delete(route('sub-test.destroy', [$testB->slug, $typeA->slug, $subA->id]))->assertNotFound();
+        $this->assertDatabaseHas('sub_tests', ['id' => $subA->id, 'name' => $subA->name]);
+
+        $this->get(route('sub-test.index', [$testA->slug, $typeA->slug]))->assertOk();
+    }
+
+    public function test_range_endpoints_reject_cross_parent_subtests_and_ranges(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$testA, $typeA, $subA] = $this->makeHierarchy('range-integrity-a');
+        [$testB, $typeB, $subB] = $this->makeHierarchy('range-integrity-b');
+        $questionA = $this->makeQuestion($subA, 'Question in subtest A');
+        $questionB = $this->makeQuestion($subB, 'Question in subtest B');
+        $rangeBId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subB->id, 'start_number' => $questionB->id, 'end_number' => $questionB->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $rangeB = SubtestInstructionRange::findOrFail($rangeBId);
+        $rangeController = app(\App\Http\Controllers\SubtestInstructionRangeController::class);
+        $this->actingAs($admin);
+
+        try {
+            $rangeController->edit($testA, $typeA, $subA, $rangeB);
+            $this->fail('A range owned by another subtest must not be editable through this parent.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+            $this->assertSame(SubtestInstructionRange::class, $exception->getModel());
+        }
+        $this->put(route('instruction-range.update', [$testA->slug, $typeA->slug, $subA->slug, $rangeB]), [
+            'start_number' => 1, 'end_number' => 1, 'order_number' => 2, 'is_active' => 0,
+        ])->assertNotFound();
+        $this->delete(route('instruction-range.destroy', [$testA->slug, $typeA->slug, $subA->slug, $rangeB]))->assertNotFound();
+        $this->assertDatabaseHas('subtest_instruction_ranges', [
+            'id' => $rangeBId, 'sub_test_id' => $subB->id, 'order_number' => 1, 'is_active' => true,
+        ]);
+
+        $rangeAId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subA->id, 'start_number' => $questionA->id, 'end_number' => $questionA->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $rangeA = SubtestInstructionRange::findOrFail($rangeAId);
+        $rangeUrl = fn (string $route, array $tail = []) => route($route, array_merge([
+            $testA->slug, $typeA->slug, $subA->slug,
+        ], $tail));
+
+        $this->get($rangeUrl('sub-test.ranges.index'))->assertOk();
+        $this->get($rangeUrl('sub-test.ranges.preview'))->assertOk();
+        $this->put($rangeUrl('instruction-range.update', [$rangeA]), [
+            'start_number' => 1, 'end_number' => 1, 'order_number' => 2, 'is_active' => 1,
+        ])->assertRedirect();
+        $this->assertDatabaseHas('subtest_instruction_ranges', ['id' => $rangeAId, 'order_number' => 2]);
+
+        $this->get(route('sub-test.ranges.index', [$testB->slug, $typeA->slug, $subA->slug]))->assertNotFound();
+        $this->post(route('instruction-range.store', [$testB->slug, $typeA->slug, $subA->slug]), [
+            'start_number' => 1, 'end_number' => 1, 'order_number' => 3,
+        ])->assertNotFound();
+        $this->get(route('sub-test.ranges.preview', [$testB->slug, $typeA->slug, $subA->slug]))->assertNotFound();
+        $this->put(route('instruction-range.update', [$testB->slug, $typeA->slug, $subA->slug, $rangeA]), [
+            'start_number' => 1, 'end_number' => 1, 'order_number' => 3,
+        ])->assertNotFound();
+        $this->delete(route('instruction-range.destroy', [$testB->slug, $typeA->slug, $subA->slug, $rangeA]))->assertNotFound();
+        try {
+            $rangeController->edit($testB, $typeA, $subA, $rangeA);
+            $this->fail('A mismatched test/type hierarchy must be rejected for range edit.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(404, $exception->getStatusCode());
+        }
+        $this->assertDatabaseHas('subtest_instruction_ranges', ['id' => $rangeAId, 'sub_test_id' => $subA->id]);
+    }
+
     public function test_attempt_service_reuses_attempt_and_child_attempts(): void
     {
         [$user] = $this->makeUserWithRole(null);
@@ -1001,6 +1101,105 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertFalse($largeSubTests->get(4)->completed);
         $this->assertFalse($largeView->getData()['allSubTestsCompleted']);
         $this->assertSame(40, (int) $largeView->getData()['totalDuration']);
+    }
+
+    public function test_subtest_statistics_use_direct_answer_group_lookup_without_changing_counts(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $firstSubTest] = $this->makeHierarchy('subtest-stats-direct-a');
+        $secondSubTestId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeTest->id, 'name' => 'Second subtest', 'slug' => 'subtest-stats-direct-b',
+            'duration' => 15, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $secondSubTest = SubTests::findOrFail($secondSubTestId);
+        $attempt = Attempt::create(['user_id' => $user->id, 'test_id' => $test->id, 'score' => 0]);
+        $typeAttempt = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeTest->id, 'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+        AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttempt->id, 'sub_test_id' => $firstSubTest->id,
+            'correct_count' => 1, 'wrong_count' => 0, 'score' => 1, 'is_finished' => true,
+        ]);
+        AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttempt->id, 'sub_test_id' => $secondSubTest->id,
+            'correct_count' => 0, 'wrong_count' => 0, 'score' => 0, 'is_finished' => false,
+        ]);
+
+        $firstCorrect = $this->makeQuestion($firstSubTest, 'First correct');
+        $firstUnanswered = $this->makeQuestion($firstSubTest, 'First unanswered');
+        $secondWrong = $this->makeQuestion($secondSubTest, 'Second wrong');
+        $this->makeQuestion($secondSubTest, 'Second unanswered');
+        foreach ([[$firstCorrect, 'A', true], [$firstUnanswered, null, false], [$secondWrong, 'B', false]] as [$question, $answer, $isCorrect]) {
+            AttemptAnswer::create([
+                'attempt_id' => $attempt->id, 'question_id' => $question->id,
+                'answer' => $answer, 'is_correct' => $isCorrect,
+            ]);
+        }
+
+        $answerReads = 0;
+        $capture = true;
+        DB::listen(function ($query) use (&$answerReads, &$capture) {
+            if ($capture && str_contains(strtolower($query->sql), 'from "attempt_answers"')) {
+                $answerReads++;
+            }
+        });
+        $this->actingAs($user);
+        $view = app(\App\Http\Controllers\UserTestController::class)->subTests($test, $typeTest);
+        $capture = false;
+
+        $listedSubTests = $view->getData()['subTests']->keyBy('id');
+        $first = $listedSubTests->get($firstSubTest->id);
+        $second = $listedSubTests->get($secondSubTest->id);
+        $this->assertSame(2, $first->total_questions);
+        $this->assertSame(1, $first->non_null_answers_count);
+        $this->assertSame(1, $first->null_answers_count);
+        $this->assertSame(1, $first->correct_count);
+        $this->assertEquals(50, $first->progress);
+        $this->assertFalse($first->all_answered);
+        $this->assertTrue($first->completed);
+        $this->assertSame(2, $second->total_questions);
+        $this->assertSame(1, $second->non_null_answers_count);
+        $this->assertSame(1, $second->null_answers_count);
+        $this->assertSame(0, $second->correct_count);
+        $this->assertEquals(0, $second->progress);
+        $this->assertFalse($second->all_answered);
+        $this->assertFalse($second->completed);
+        $this->assertFalse($view->getData()['allSubTestsCompleted']);
+        $this->assertEquals(75, $view->getData()['completionRate']);
+        $this->assertSame(1, $answerReads, 'Answers should remain a single batch read across all subtests.');
+    }
+
+    public function test_find_current_range_preserves_explicit_incomplete_and_context_selection(): void
+    {
+        $ranges = collect([
+            (object) ['id' => 10, 'start_number' => 101, 'end_number' => 102],
+            (object) ['id' => 20, 'start_number' => 103, 'end_number' => 104],
+            (object) ['id' => 30, 'start_number' => 105, 'end_number' => 106],
+        ]);
+        $allQuestions = collect([101, 102, 103, 104, 105, 106])->map(fn ($id) => (object) ['id' => $id]);
+        $questionIdToNumber = [101 => 1, 102 => 2, 103 => 3, 104 => 4, 105 => 5, 106 => 6];
+        $rangeService = app(\App\Services\RangeService::class);
+
+        $this->assertSame([$ranges[0], 0], $rangeService->findCurrentRange($ranges, collect(), $allQuestions, $questionIdToNumber));
+
+        $rangeOneAnswered = collect([
+            ['question_id' => 101, 'answer' => 'A'], ['question_id' => 102, 'answer' => 'B'],
+            ['question_id' => 103, 'answer' => null],
+        ]);
+        $this->assertSame([$ranges[1], 1], $rangeService->findCurrentRange($ranges, $rangeOneAnswered, $allQuestions, $questionIdToNumber));
+        $this->assertSame([$ranges[0], 0], $rangeService->findCurrentRange(
+            $ranges, $rangeOneAnswered, $allQuestions, $questionIdToNumber, ['range_id' => 10]
+        ));
+        $this->assertSame([$ranges[1], 1], $rangeService->findCurrentRange(
+            $ranges, $rangeOneAnswered, $allQuestions, $questionIdToNumber, ['auto_range_switch' => true]
+        ));
+        $this->assertSame([$ranges[1], 1], $rangeService->findCurrentRange(
+            $ranges, $rangeOneAnswered, $allQuestions, $questionIdToNumber, ['range_completed' => true]
+        ));
+
+        $allAnswered = collect(range(101, 106))->map(fn ($id) => ['question_id' => $id, 'answer' => 'A']);
+        $this->assertSame([$ranges[2], 2], $rangeService->findCurrentRange($ranges, $allAnswered, $allQuestions, $questionIdToNumber));
+        $this->assertSame([null, null], $rangeService->findCurrentRange(collect(), collect(), $allQuestions, $questionIdToNumber));
     }
 
     public function test_admin_attempt_index_whitelists_sort_and_page_size_and_keeps_view_relations(): void

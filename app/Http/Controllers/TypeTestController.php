@@ -10,6 +10,14 @@ use Illuminate\Validation\Rule;
 
 class TypeTestController extends Controller
 {
+    private function assertHierarchy(Tests $test, TypeTests $typeTest): void
+    {
+        abort_unless(
+            (int) $typeTest->tests_id === (int) $test->id,
+            404
+        );
+    }
+
     public function index(Tests $test)
     {
         $typeTests = $test->typeTests()->latest()->get();
@@ -57,6 +65,8 @@ class TypeTestController extends Controller
 
     public function update(Request $request, Tests $test, TypeTests $typeTest)
     {
+        $this->assertHierarchy($test, $typeTest);
+
         $validated = $request->validate([
             'name' => [
                 'required',
@@ -94,6 +104,8 @@ class TypeTestController extends Controller
 
     public function destroy(Tests $test, TypeTests $typeTest)
     {
+        $this->assertHierarchy($test, $typeTest);
+
         $typeTest->delete();
 
         return redirect()->route('type-test.index', $test)->with('success', 'Type Test berhasil dihapus.');

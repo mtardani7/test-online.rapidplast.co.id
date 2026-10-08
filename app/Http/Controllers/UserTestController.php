@@ -270,7 +270,9 @@ class UserTestController extends Controller
             $subQuestions = $questions[$subTest->id] ?? collect();
             $subQuestionIds = $subQuestions->pluck('id');
 
-            $subAnswers = $answers->filter(fn ($_, $questionId) => $subQuestionIds->contains($questionId))->flatten();
+            $subAnswers = $subQuestionIds->flatMap(
+                fn ($questionId) => $answers->get($questionId, collect())
+            );
 
             $totalQuestions = $subQuestions->count();
             $answeredCount = $subAnswers->whereNotNull('answer')->count();

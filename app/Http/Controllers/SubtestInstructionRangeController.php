@@ -11,8 +11,23 @@ use App\Models\Questions;
 
 class SubtestInstructionRangeController extends Controller
 {
+    private function assertHierarchy(Tests $test, TypeTests $typeTest, SubTests $subTest): void
+    {
+        abort_unless(
+            (int) $typeTest->tests_id === (int) $test->id,
+            404
+        );
+
+        abort_unless(
+            (int) $subTest->type_tests_id === (int) $typeTest->id,
+            404
+        );
+    }
+
     public function index(Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
         $ranges = SubtestInstructionRange::where('sub_test_id', $subTest->id)->orderBy('order_number')->get();
 
         $questions = Questions::where('sub_tests_id', $subTest->id)->orderBy('id', 'asc')->get();
@@ -72,6 +87,9 @@ class SubtestInstructionRangeController extends Controller
 
     public function edit(Tests $test, TypeTests $typeTest, SubTests $subTest, SubtestInstructionRange $range)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $range = $subTest->instructionRanges()->whereKey($range->id)->firstOrFail();
+
         $questions = Questions::where('sub_tests_id', $subTest->id)->orderBy('id', 'asc')->get();
 
         $numberedQuestions = $questions->map(function ($question, $index) {
@@ -87,6 +105,8 @@ class SubtestInstructionRangeController extends Controller
 
     public function store(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
         $request->validate([
             'start_number' => 'required|integer|min:1',
             'end_number'   => 'required|integer|min:1',
@@ -166,6 +186,9 @@ class SubtestInstructionRangeController extends Controller
         SubTests $subTest,
         SubtestInstructionRange $range
     ) {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $range = $subTest->instructionRanges()->whereKey($range->id)->firstOrFail();
+
         $request->validate([
             'start_number' => 'required|integer|min:1',
             'end_number'   => 'required|integer|min:1',
@@ -237,6 +260,9 @@ class SubtestInstructionRangeController extends Controller
 
     public function destroy(Tests $test, TypeTests $typeTest, SubTests $subTest, SubtestInstructionRange $range)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $range = $subTest->instructionRanges()->whereKey($range->id)->firstOrFail();
+
         try {
             $range->delete();
             return back()->with('success', 'Range instruksi berhasil dihapus.');
@@ -249,6 +275,8 @@ class SubtestInstructionRangeController extends Controller
 
     public function preview(Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
         $ranges = SubtestInstructionRange::where('sub_test_id', $subTest->id)->orderBy('order_number')->get();
         $questions = Questions::where('sub_tests_id', $subTest->id)->orderBy('id', 'asc')->get();
         $questionsWithNumber = $questions->map(function ($question, $index) {

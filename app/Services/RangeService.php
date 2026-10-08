@@ -61,16 +61,6 @@ class RangeService
                 return [$ranges[$forcedIndex], $forcedIndex];
             }
         }
-        if (!empty($context['auto_range_switch']) || !empty($context['range_completed'])) {
-            foreach ($ranges as $i => $range) {
-                [$answered, $total] = $rangeStats($range);
-
-                if ($answered < $total) {
-                    return [$range, $i];
-                }
-            }
-        }
-
         foreach ($ranges as $i => $range) {
             [$answered, $total] = $rangeStats($range);
 
