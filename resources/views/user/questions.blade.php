@@ -258,7 +258,7 @@
         </div>
         <form id="questionForm" action="{{ route('user.questions.submit-single', [$test->slug, $typeTest->slug, $subTest->slug]) }}" method="POST">
             @csrf
-            <input type="hidden" name="question_id" value="{{ $currentQuestion->id }}">
+            <input type="hidden" id="currentQuestionIdInput" name="question_id" value="{{ $currentQuestion->id }}">
             <input type="hidden" id="totalDuration" value="{{ $subTest->duration }}">
             <input type="hidden" id="timeRemaining" name="time_remaining" value="">
             <input type="hidden" name="range_id" value="{{ $selectedRange->id ?? '' }}">
@@ -267,7 +267,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center">
                             <div>
-                                <h2 class="text-lg font-semibold text-gray-800">Pertanyaan #{{ $currentQuestionIndex }}</h2>
+                                <h2 id="currentQuestionHeading" class="text-lg font-semibold text-gray-800">Pertanyaan #{{ $currentQuestionIndex }}</h2>
                                 <p class="text-sm text-gray-600">Pilih jawaban terbaik</p>
                             </div>
                         </div>
@@ -283,58 +283,18 @@
                     </div>
                 </div>
                 <div class="p-6 md:p-8">
-                    @if(isset($currentQuestion->image))
-                    <div class="mb-6">
-                        <div class="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
-                            <img src="{{ $currentQuestion->image }}" 
-                                 alt="Question Image" 
-                                 class="w-full h-auto max-h-64 object-contain">
-                            <div class="bg-gray-50 px-4 py-2 text-center text-sm text-gray-500 border-t border-gray-200">
-                                Gambar Referensi
-                            </div>
-                        </div>
+                    <div id="questionContent" aria-live="polite">
+                        @include('user.partials.question-content', [
+                            'currentQuestion' => $currentQuestion,
+                            'currentQuestionIndex' => $currentQuestionIndex,
+                            'previousAnswer' => $previousAnswer,
+                        ])
                     </div>
-                    @endif
-                    <div class="mb-8">
-                        <div class="flex items-start mb-4">
-                            <div class="text-justify">
-                                <h3 class="text-xl font-semibold text-gray-800 mb-2">{{ $currentQuestion->question_text }}</h3>
-                                <h3 class="text-xl font-semibold text-gray-800 mb-2">{{ $currentQuestion->question_optional }}</h3>
-                            </div>
-                        </div>
+                    <div id="questionNavigationLoading" class="hidden mt-4 text-center text-sm text-gray-500" role="status">
+                        Memuat pertanyaan...
                     </div>
-                    <div class="space-y-4">
-                        <h4 class="text-lg font-semibold text-gray-800 mb-4">Pilih Jawaban:</h4>
-                        @foreach($currentQuestion->choices as $choice)
-                        <div class="group">
-                            <input type="radio" 
-                                   name="answer" 
-                                   id="option_{{ $choice->id }}" 
-                                   value="{{ $choice->id }}" 
-                                   class="hidden peer"
-                                   @if($previousAnswer && $previousAnswer->answer == $choice->id) checked @endif>
-                            <label for="option_{{ $choice->id }}" 
-                                   class="flex items-start p-4 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-200 hover:border-red-300 hover:bg-red-50 peer-checked:border-red-500 peer-checked:bg-gradient-to-r peer-checked:from-red-50 peer-checked:to-red-100 peer-checked:shadow-sm">
-                                <div class="flex-shrink-0 mt-0.5">
-                                    <div class="w-8 h-8 flex items-center justify-center border-2 border-gray-300 rounded-lg group-hover:border-red-400 peer-checked:border-red-500 peer-checked:bg-red-500 transition-all duration-200">
-                                        <span class="text-sm font-semibold text-gray-600 group-hover:text-red-600 peer-checked:text-white">
-                                            {{ $choice->option_label }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <p class="text-gray-600">
-                                        {{ $choice->option_text }}
-                                    </p>
-                                </div>
-                                <div class="ml-auto flex-shrink-0 opacity-0 peer-checked:opacity-100 transition-opacity duration-200">
-                                    <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                </div>
-                            </label>
-                        </div>
-                        @endforeach
+                    <div id="questionNavigationError" class="hidden mt-4 text-center text-sm text-red-600" role="alert">
+                        Pertanyaan gagal dimuat. Jawaban Anda tetap tersimpan. Silakan coba lagi.
                     </div>
                     <div class="mt-8 pt-6 border-t border-gray-200">
                         <div class="flex items-start">
@@ -357,38 +317,33 @@
                 <div class="px-6 py-5 bg-gray-50 border-t border-gray-200">
                     <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                         @if($test->name !== 'Tes Speed Accuracy')
-                        @if($currentQuestionIndex > 1)
-                        <a href="{{ route('user.questions', [
-                            'test' => $test->slug,
-                            'typeTest' => $typeTest->slug,
-                            'subTest' => $subTest->slug,
-                            'question' => $currentQuestionIndex - 1,
-                            'range_id' => $selectedRange->id ?? ''
-                        ]) }}" 
-                           class="inline-flex items-center px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 w-full sm:w-auto justify-center">
+                        <a href="#" id="previousQuestionBtn" @class([
+                            'inline-flex items-center px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 w-full sm:w-auto justify-center',
+                            'hidden' => $currentQuestionIndex <= 1,
+                        ])>
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                             Pertanyaan Sebelumnya
                         </a>
-                        @else
-                        <div></div> 
                         @endif
-                        @endif
-                        
-                        @if($currentQuestionIndex < $totalQuestions)
                         <button type="button" 
                                 id="nextQuestionBtn"
-                                class="inline-flex items-center px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 w-full sm:w-auto justify-center">
+                                @class([
+                                    'inline-flex items-center px-8 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold rounded-lg hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 w-full sm:w-auto justify-center',
+                                    'hidden' => $currentQuestionIndex >= $totalQuestions,
+                                ])>
                             <span>Pertanyaan Berikutnya</span>
                             <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                             </svg>
                         </button>
-                        @else
                         <button type="button" 
                                 id="submitAllBtn"
-                                class="inline-flex items-center px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 w-full sm:w-auto justify-center">
+                                @class([
+                                    'inline-flex items-center px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 w-full sm:w-auto justify-center',
+                                    'hidden' => $currentQuestionIndex < $totalQuestions,
+                                ])>
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                             </svg>
@@ -398,7 +353,6 @@
                                 Kirim Semua Jawaban
                             @endif
                         </button>
-                        @endif
                     </div>
                     <div class="mt-4 text-center">
                         <div class="inline-flex items-center text-sm text-gray-500" id="saveStatus">
@@ -589,6 +543,9 @@ document.addEventListener("keydown", function(e) {
     let currentRangeId = {{ $selectedRange->id ?? 'null' }};
     let nextRangeId = null;
     let isInternalNavigation = false;
+    let isQuestionNavigating = false;
+    let questionNavigationController = null;
+    let questionNavigationRequestId = 0;
     
     @if(isset($allRanges) && isset($selectedRange))
         @php
@@ -613,6 +570,7 @@ document.addEventListener("keydown", function(e) {
     const ALL_RANGES = @json($allRanges->map(function($r){ return ['id'=>$r->id,'start'=>$r->start_number,'end'=>$r->end_number]; }));
     const TOTAL_ALL_QUESTIONS = {{ $totalAllQuestions ?? 0 }};
     const PER_QUESTION_SECONDS = TOTAL_ALL_QUESTIONS > 0 ? (subTestDuration * 60) / TOTAL_ALL_QUESTIONS : 60;
+    const QUESTION_DATA_URL = "{{ route('user.questions.data', ['test' => $test->slug, 'typeTest' => $typeTest->slug, 'subTest' => $subTest->slug]) }}";
 
     function getExamStoragePrefix() {
         return `exam_{{ $test->id ?? 0 }}_{{ $subTest->id ?? 0 }}_`;
@@ -749,6 +707,152 @@ document.addEventListener("keydown", function(e) {
         if (idx === -1) return null;
         const next = ALL_RANGES[idx + 1];
         return next ? next.id : null;
+    }
+
+    function setQuestionNavigationLoading(isLoading) {
+        isQuestionNavigating = isLoading;
+        const questionContent = document.getElementById('questionContent');
+        const loadingIndicator = document.getElementById('questionNavigationLoading');
+        const errorIndicator = document.getElementById('questionNavigationError');
+        if (questionContent) {
+            questionContent.classList.toggle('opacity-50', isLoading);
+            questionContent.classList.toggle('pointer-events-none', isLoading);
+            questionContent.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+        }
+        if (loadingIndicator) loadingIndicator.classList.toggle('hidden', !isLoading);
+        if (isLoading && errorIndicator) errorIndicator.classList.add('hidden');
+
+        ['previousQuestionBtn', 'nextQuestionBtn', 'submitAllBtn'].forEach(id => {
+            const button = document.getElementById(id);
+            if (button) button.disabled = isLoading;
+        });
+        document.querySelectorAll('.question-dot').forEach(dot => {
+            dot.setAttribute('aria-disabled', isLoading ? 'true' : 'false');
+            dot.classList.toggle('pointer-events-none', isLoading);
+            dot.classList.toggle('opacity-50', isLoading);
+        });
+    }
+
+    function updateQuestionNavigationControls() {
+        const previousButton = document.getElementById('previousQuestionBtn');
+        const nextButton = document.getElementById('nextQuestionBtn');
+        const submitButton = document.getElementById('submitAllBtn');
+        if (previousButton) previousButton.classList.toggle('hidden', currentQuestionNumber <= 1);
+        if (nextButton) nextButton.classList.toggle('hidden', currentQuestionNumber >= totalQuestions);
+        if (submitButton) submitButton.classList.toggle('hidden', currentQuestionNumber < totalQuestions);
+    }
+
+    function updateQuestionUrl(questionNumber, rangeId, method = 'push') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('question', questionNumber);
+        if (rangeId) url.searchParams.set('range_id', rangeId);
+        else url.searchParams.delete('range_id');
+        const state = { question: questionNumber, rangeId: rangeId || null };
+        if (method === 'replace') history.replaceState(state, '', url);
+        else if (method === 'push') history.pushState(state, '', url);
+    }
+
+    async function navigateToQuestion(questionNumber, rangeId = currentRangeId, options = {}) {
+        const requestedQuestion = Number(questionNumber);
+        const normalizedRangeId = rangeId === '' || rangeId === null || typeof rangeId === 'undefined'
+            ? null
+            : Number(rangeId);
+        if (!Number.isInteger(requestedQuestion) || requestedQuestion < 1) return false;
+        if (isQuestionNavigating && !options.force) return false;
+
+        if (isQuestionNavigating && questionNavigationController) {
+            questionNavigationController.abort();
+        }
+
+        const currentGlobalQuestion = QUESTION_NUMBER_MAP[currentQuestionId];
+        if (requestedQuestion === Number(currentGlobalQuestion)
+            && String(normalizedRangeId ?? '') === String(currentRangeId ?? '')) {
+            return true;
+        }
+
+        saveAnswerToLocalStorage(false);
+        saveTimerToStorage();
+        setQuestionNavigationLoading(true);
+
+        const requestId = ++questionNavigationRequestId;
+        const controller = new AbortController();
+        questionNavigationController = controller;
+        try {
+            const requestUrl = new URL(QUESTION_DATA_URL, window.location.origin);
+            requestUrl.searchParams.set('question', requestedQuestion);
+            if (normalizedRangeId) requestUrl.searchParams.set('range_id', normalizedRangeId);
+
+            const response = await fetch(requestUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: controller.signal,
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const questionData = await response.json();
+            if (!questionData.html || !questionData.question_id || requestId !== questionNavigationRequestId) {
+                throw new Error('Invalid question response');
+            }
+
+            const questionContent = document.getElementById('questionContent');
+            questionContent.innerHTML = questionData.html;
+            currentQuestionId = questionData.question_id;
+            currentQuestionNumber = questionData.question_index;
+            currentRangeId = normalizedRangeId;
+            document.getElementById('currentQuestionIdInput').value = currentQuestionId;
+            document.getElementById('currentQuestionHeading').textContent = `Pertanyaan #${currentQuestionNumber}`;
+            const currentQuestionLabel = document.getElementById('currentQuestion');
+            if (currentQuestionLabel) currentQuestionLabel.textContent = currentQuestionNumber;
+
+            const answerData = examState.answers[currentQuestionId];
+            const answerInputs = Array.from(questionContent.querySelectorAll('input[name="answer"]'));
+            if (answerData) {
+                answerInputs.forEach(input => {
+                    input.checked = String(input.value) === String(answerData.answer);
+                });
+            }
+            const selectedInput = answerInputs.find(input => input.checked);
+            if (selectedInput) {
+                if (!answerData) {
+                    const restoredAnswer = {
+                        question_id: currentQuestionId,
+                        answer: selectedInput.value,
+                        skipped: false,
+                        timestamp: new Date().toISOString(),
+                    };
+                    examState.answers[currentQuestionId] = restoredAnswer;
+                    localStorage.setItem(getAnswerStorageKey(currentQuestionId), JSON.stringify(restoredAnswer));
+                }
+                examState.answeredQuestions.add(currentQuestionNumber);
+            } else {
+                examState.answeredQuestions.delete(currentQuestionNumber);
+            }
+
+            bindQuestionAnswerEvents();
+            updateQuestionDots();
+            updateQuestionNavigationControls();
+            updateSaveStatus(selectedInput ? 'saved' : '');
+            updateTimerDisplay();
+            if (options.history !== 'none') updateQuestionUrl(requestedQuestion, normalizedRangeId, options.history || 'push');
+            return true;
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Question navigation error:', error);
+                const errorIndicator = document.getElementById('questionNavigationError');
+                if (errorIndicator) errorIndicator.classList.remove('hidden');
+            }
+            if (options.history === 'none') {
+                updateQuestionUrl(currentGlobalQuestion, currentRangeId, 'replace');
+            }
+            return false;
+        } finally {
+            if (requestId === questionNavigationRequestId) {
+                questionNavigationController = null;
+                setQuestionNavigationLoading(false);
+            }
+        }
     }
 
     function formatTime(seconds) {
@@ -1102,7 +1206,21 @@ document.addEventListener("keydown", function(e) {
                 </svg>
                 Jawaban Tersimpan
             `;
+        } else {
+            saveStatus.textContent = 'Pilih jawaban untuk menyimpan';
         }
+    }
+
+    function bindQuestionAnswerEvents() {
+        document.querySelectorAll('#questionContent input[name="answer"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                hasUnsavedChanges = true;
+                updateSaveStatus('saving');
+                saveAnswerToLocalStorage(false);
+                clearTimeout(window.autoSaveTimeout);
+                window.autoSaveTimeout = setTimeout(() => updateSaveStatus('saved'), 500);
+            });
+        });
     }
     
     function showErrorModal(errorMessage = '') {
@@ -1167,6 +1285,12 @@ document.addEventListener("keydown", function(e) {
         loadExamStateFromStorage();
         updateQuestionDots();
         updateProgressBar();
+        updateQuestionNavigationControls();
+        bindQuestionAnswerEvents();
+        history.replaceState({
+            question: QUESTION_NUMBER_MAP[currentQuestionId],
+            rangeId: currentRangeId,
+        }, '', window.location.href);
         loadTimerFromStorage(currentRangeId);
         updateTimerDisplay();
 
@@ -1192,20 +1316,39 @@ document.addEventListener("keydown", function(e) {
             }
         })();
         const savedAnswer = examState.answers[currentQuestionId];
-        if (savedAnswer?.answer) {
-            const radio = document.querySelector(`input[name="answer"][value="${savedAnswer.answer}"]`);
-            if (radio) {
-                radio.checked = true;
-                updateSaveStatus('saved');
-                examState.answeredQuestions.add(currentQuestionNumber);
-                updateQuestionDots();
+        const initialAnswerInputs = Array.from(document.querySelectorAll('#questionContent input[name="answer"]'));
+        if (savedAnswer) {
+            initialAnswerInputs.forEach(input => {
+                input.checked = String(input.value) === String(savedAnswer.answer);
+            });
+        }
+        const initialSelectedAnswer = initialAnswerInputs.find(input => input.checked);
+        if (initialSelectedAnswer) {
+            if (!savedAnswer) {
+                const restoredAnswer = {
+                    question_id: currentQuestionId,
+                    answer: initialSelectedAnswer.value,
+                    skipped: false,
+                    timestamp: new Date().toISOString(),
+                };
+                examState.answers[currentQuestionId] = restoredAnswer;
+                localStorage.setItem(getAnswerStorageKey(currentQuestionId), JSON.stringify(restoredAnswer));
             }
+            examState.answeredQuestions.add(currentQuestionNumber);
+            updateSaveStatus('saved');
+            updateQuestionDots();
+        } else {
+            examState.answeredQuestions.delete(currentQuestionNumber);
+            if (savedAnswer) updateSaveStatus('');
         }
         const nextQuestionBtn = document.getElementById('nextQuestionBtn');
         if (nextQuestionBtn) {
             nextQuestionBtn.addEventListener('click', function() {
-                saveAnswerToLocalStorage(false);
-                saveTimerToStorage();
+                if (isQuestionNavigating) return;
+                if (!document.querySelector('#questionContent input[name="answer"]:checked')) {
+                    document.getElementById('noAnswerModal').classList.remove('hidden');
+                    return;
+                }
                 navigateToNextQuestion();
             });
         }
@@ -1271,25 +1414,30 @@ document.addEventListener("keydown", function(e) {
         document.querySelectorAll('.question-dot').forEach(dot => {
             dot.addEventListener('click', function(e) {
                 e.preventDefault();
-                saveAnswerToLocalStorage(false);
-                saveTimerToStorage();
-                
-                const questionNumber = parseInt(this.getAttribute('data-question-number'));
-                if (questionNumber) {
-                    window.location.href = this.href;
-                }
+                if (isQuestionNavigating) return;
+                const targetUrl = new URL(this.href, window.location.href);
+                navigateToQuestion(
+                    targetUrl.searchParams.get('question'),
+                    targetUrl.searchParams.get('range_id')
+                );
             });
         });
-        document.querySelectorAll('input[name="answer"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                hasUnsavedChanges = true;
-                updateSaveStatus('saving');
-                saveAnswerToLocalStorage(false);
-                clearTimeout(window.autoSaveTimeout);
-                window.autoSaveTimeout = setTimeout(() => {
-                    updateSaveStatus('saved');
-                }, 500);
+        const previousQuestionBtn = document.getElementById('previousQuestionBtn');
+        if (previousQuestionBtn) {
+            previousQuestionBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                if (isQuestionNavigating) return;
+                const currentGlobalQuestion = QUESTION_NUMBER_MAP[currentQuestionId];
+                navigateToQuestion(currentGlobalQuestion - 1, currentRangeId);
             });
+        }
+        window.addEventListener('popstate', function(event) {
+            const currentUrl = new URL(window.location.href);
+            const targetRangeId = currentUrl.searchParams.get('range_id') ?? event.state?.rangeId ?? null;
+            const range = ALL_RANGES.find(item => item.id == targetRangeId);
+            const defaultQuestion = range ? QUESTION_NUMBER_MAP[range.start] : 1;
+            const targetQuestion = currentUrl.searchParams.get('question') ?? event.state?.question ?? defaultQuestion;
+            navigateToQuestion(targetQuestion, targetRangeId, { force: true, history: 'none' });
         });
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
@@ -1299,24 +1447,6 @@ document.addEventListener("keydown", function(e) {
                 updateTimerDisplay();
             }
         });
-        document.querySelectorAll('a[href*="/questions"]').forEach(link => {
-            if (link.textContent.includes('Pertanyaan Sebelumnya')) {
-                link.addEventListener('click', function(e) {
-                    saveAnswerToLocalStorage(false);
-                    saveTimerToStorage();
-                });
-            }
-        });
-        if (nextQuestionBtn) {
-            const originalNextClick = nextQuestionBtn.onclick;
-            nextQuestionBtn.onclick = function(e) {
-                const selectedAnswer = document.querySelector('input[name="answer"]:checked');
-                if (!selectedAnswer) {
-                    e.preventDefault();
-                    document.getElementById('noAnswerModal').classList.remove('hidden');
-                }
-            };
-        }
     });
 
     document.addEventListener('DOMContentLoaded', function() {

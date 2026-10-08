@@ -47,6 +47,7 @@ Route::middleware(['auth','verified','not_admin'])->group(function () {
         Route::get('{test:slug}', [UserTestController::class, 'typeTests'])->name('user.type-tests');
         Route::get('{test:slug}/{typeTest:slug}', [UserTestController::class, 'subTests'])->name('user.sub-tests');
         Route::get('{test:slug}/{typeTest:slug}/{subTest:slug}', [UserTestController::class, 'questions'])->name('user.questions');
+        Route::get('{test:slug}/{typeTest:slug}/{subTest:slug}/question', [UserTestController::class, 'questionData'])->name('user.questions.data');
         Route::post('{test:slug}/{typeTest:slug}/{subTest:slug}/submit-single', [UserTestController::class, 'submitSingle'])->name('user.questions.submit-single');
         Route::post('{test:slug}/{typeTest:slug}/{subTest:slug}/submit-all', [UserTestController::class, 'submitAll'])->name('user.questions.submit-all');
         Route::post('{test:slug}/{typeTest:slug}/{subTest:slug}/submit', [UserTestController::class, 'submit'])->name('user.questions.submit');

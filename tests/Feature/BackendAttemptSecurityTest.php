@@ -653,6 +653,97 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertDatabaseCount('attempts', 0);
     }
 
+    public function test_question_data_endpoint_returns_only_requested_question_content(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('question-data-positive');
+        [$question, $correctChoice, $otherChoice] = $this->makeQuestionWithChoices($subTest, 'AJAX question text');
+        $this->makeActiveSubAttempt($user, $test, $typeTest, $subTest);
+        $rangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subTest->id, 'start_number' => $question->id, 'end_number' => $question->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->getJson(route('user.questions.data', [$test->slug, $typeTest->slug, $subTest->slug]) . '?question=1')
+            ->assertUnauthorized();
+
+        $response = $this->actingAs($user)
+            ->getJson(route('user.questions.data', [$test->slug, $typeTest->slug, $subTest->slug]) . '?question=1')
+            ->assertOk()
+            ->assertJsonPath('question_id', $question->id)
+            ->assertJsonPath('question_number', 1)
+            ->assertJsonPath('question_index', 1);
+        $html = $response->json('html');
+        $this->assertStringContainsString('data-question-id="' . $question->id . '"', $html);
+        $this->assertStringContainsString('AJAX question text', $html);
+        $this->assertStringContainsString($correctChoice->option_text, $html);
+        $this->assertStringContainsString($otherChoice->option_text, $html);
+        $this->assertStringNotContainsString('correct_option_id', $html);
+        $this->assertStringNotContainsString('is_correct', $html);
+        $this->assertStringNotContainsString('scoring', $html);
+
+        $this->getJson(route('user.questions.data', [$test->slug, $typeTest->slug, $subTest->slug]) . '?question=1&range_id=' . $rangeId)
+            ->assertOk()
+            ->assertJsonPath('question_index', 1);
+    }
+
+    public function test_question_data_endpoint_enforces_hierarchy_ownership_completion_and_range(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$testA, $typeA, $subA] = $this->makeHierarchy('question-data-a');
+        [$testB, $typeB, $subB] = $this->makeHierarchy('question-data-b');
+        $questionA = $this->makeQuestion($subA, 'Question in A');
+        $this->makeQuestion($subA, 'Second question in A');
+        $this->makeQuestion($subB, 'Question in B');
+        $subAttempt = $this->makeActiveSubAttempt($user, $testA, $typeA, $subA);
+        $foreignRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subB->id, 'start_number' => 1, 'end_number' => 1,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $ownedRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subA->id, 'start_number' => $questionA->id, 'end_number' => $questionA->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+        $this->getJson(route('user.questions.data', [$testB->slug, $typeA->slug, $subA->slug]) . '?question=1')->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeB->slug, $subA->slug]) . '?question=1')->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subB->slug]) . '?question=1')->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subA->slug]) . '?question=3')->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subA->slug]) . '?question=2&range_id=' . $ownedRangeId)->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subA->slug]) . '?question=1&range_id=' . $foreignRangeId)->assertNotFound();
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subA->slug]) . '?question=0')->assertUnprocessable();
+
+        $subAttempt->update(['is_finished' => true]);
+        $this->getJson(route('user.questions.data', [$testA->slug, $typeA->slug, $subA->slug]) . '?question=1')->assertNotFound();
+    }
+
+    public function test_question_data_endpoint_uses_the_existing_deterministic_shuffle_order(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('question-data-shuffle');
+        DB::table('tests')->where('id', $test->id)->update(['is_shuffle' => true]);
+        $test->refresh();
+        $questions = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $questions[] = $this->makeQuestionWithChoices($subTest, 'Shuffled content ' . $index)[0];
+        }
+        $this->makeActiveSubAttempt($user, $test, $typeTest, $subTest);
+
+        $shuffleService = app(\App\Services\ShuffleService::class);
+        $allQuestions = $subTest->questions()->select('id')->orderBy('id')->get();
+        $expectedOrder = $shuffleService->getUniqueShuffledQuestions($user, $test, $subTest, $allQuestions)
+            ->pluck('id')->values();
+
+        foreach ($expectedOrder as $index => $questionId) {
+            $response = $this->actingAs($user)
+                ->getJson(route('user.questions.data', [$test->slug, $typeTest->slug, $subTest->slug]) . '?question=' . ($index + 1))
+                ->assertOk()
+                ->assertJsonPath('question_number', $index + 1);
+            $this->assertStringContainsString('data-question-id="' . $questionId . '"', $response->json('html'));
+        }
+    }
+
     public function test_question_routes_enforce_all_three_levels_of_test_hierarchy(): void
     {
         [$admin] = $this->makeUserWithRole('admin');
@@ -1533,6 +1624,33 @@ class BackendAttemptSecurityTest extends TestCase
         ]);
 
         return [TestModel::findOrFail($testId), TypeTests::findOrFail($typeId), SubTests::findOrFail($subId)];
+    }
+
+    private function makeActiveSubAttempt(User $user, TestModel $test, TypeTests $typeTest, SubTests $subTest, bool $finished = false): AttemptSubTest
+    {
+        $attempt = Attempt::create([
+            'user_id' => $user->id,
+            'test_id' => $test->id,
+            'total_correct' => 0,
+            'total_question' => 0,
+            'score' => 0,
+        ]);
+        $typeAttempt = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id,
+            'type_test_id' => $typeTest->id,
+            'correct' => 0,
+            'total' => 0,
+            'score' => 0,
+        ]);
+
+        return AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttempt->id,
+            'sub_test_id' => $subTest->id,
+            'correct_count' => 0,
+            'wrong_count' => 0,
+            'score' => 0,
+            'is_finished' => $finished,
+        ]);
     }
 
     private function makeQuestion(SubTests $subTest, string $text): Questions

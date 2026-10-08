@@ -513,6 +513,100 @@ class UserTestController extends Controller
         ]);
     }
 
+    public function questionData(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
+    {
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
+
+        $validated = $request->validate([
+            'question' => ['required', 'integer', 'min:1'],
+            'range_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        ]);
+
+        $subAttempt = AttemptSubTest::query()
+            ->with(['attemptTypeTest' => fn ($query) => $query->select('id', 'attempt_id', 'type_test_id')])
+            ->where('sub_test_id', $subTest->id)
+            ->whereHas('attemptTypeTest', function ($query) use ($typeTest, $test) {
+                $query->where('type_test_id', $typeTest->id)
+                    ->whereHas('attempt', function ($attemptQuery) use ($test) {
+                        $attemptQuery->where('user_id', Auth::id())
+                            ->where('test_id', $test->id);
+                    });
+            })
+            ->firstOrFail();
+
+        abort_if($subAttempt->is_finished, 404);
+
+        $allQuestions = $subTest->questions()
+            ->select('id')
+            ->orderBy('id')
+            ->get();
+
+        abort_if($allQuestions->isEmpty(), 404);
+
+        if ($test->is_shuffle == 1) {
+            $allQuestions = $this->shuffleService
+                ->getUniqueShuffledQuestions(Auth::user(), $test, $subTest, $allQuestions);
+        }
+
+        $questionIdToNumber = $this->shuffleService
+            ->createQuestionIdToNumberMap($allQuestions);
+        $questionNumber = (int) $validated['question'];
+        abort_if($questionNumber > $allQuestions->count(), 404);
+
+        $selectedRange = null;
+        $rangeStartNumber = null;
+        $rangeEndNumber = null;
+        if (!empty($validated['range_id'])) {
+            $selectedRange = $subTest->instructionRanges()
+                ->whereKey($validated['range_id'])
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            $rangeStartNumber = $questionIdToNumber[$selectedRange->start_number] ?? null;
+            $rangeEndNumber = $questionIdToNumber[$selectedRange->end_number] ?? null;
+            abort_unless(
+                $rangeStartNumber && $rangeEndNumber
+                    && $questionNumber >= $rangeStartNumber
+                    && $questionNumber <= $rangeEndNumber,
+                404
+            );
+        }
+
+        $questionId = $allQuestions[$questionNumber - 1]->id;
+        $questionForeignKey = QuestionChoices::questionForeignKey();
+        $currentQuestion = $subTest->questions()
+            ->select('id', 'sub_tests_id', 'question_text', 'question_optional', 'image')
+            ->with(['choices' => fn ($query) => $query->select(
+                'id', $questionForeignKey, 'option_label', 'option_text'
+            )])
+            ->whereKey($questionId)
+            ->firstOrFail();
+
+        $previousAnswer = AttemptAnswer::query()
+            ->where('attempt_id', $subAttempt->attemptTypeTest->attempt_id)
+            ->where('question_id', $currentQuestion->id)
+            ->value('answer');
+        $previousAnswer = $previousAnswer === null ? null : (object) ['answer' => $previousAnswer];
+        $currentQuestionIndex = $selectedRange
+            ? $questionNumber - $rangeStartNumber + 1
+            : $questionNumber;
+        $totalQuestions = $selectedRange
+            ? $rangeEndNumber - $rangeStartNumber + 1
+            : $allQuestions->count();
+
+        return response()->json([
+            'html' => view('user.partials.question-content', [
+                'currentQuestion' => $currentQuestion,
+                'currentQuestionIndex' => $currentQuestionIndex,
+                'previousAnswer' => $previousAnswer,
+            ])->render(),
+            'question_id' => $currentQuestion->id,
+            'question_number' => $questionNumber,
+            'question_index' => $currentQuestionIndex,
+            'total_questions' => $totalQuestions,
+        ]);
+    }
+
     public function getShuffledOrder(Request $request, Tests $test, SubTests $subTest)
     {
         $tokenCheck = $this->checkRememberToken();
