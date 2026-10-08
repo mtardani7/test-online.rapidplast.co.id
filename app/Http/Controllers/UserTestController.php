@@ -342,7 +342,7 @@ class UserTestController extends Controller
                 ->with('info', 'Subtest ini sudah diselesaikan.');
         }
         $allQuestions = $subTest->questions()
-            ->with('choices')
+            ->select('id', 'question_text', 'question_optional', 'image')
             ->orderBy('id')
             ->get();
 
@@ -369,6 +369,7 @@ class UserTestController extends Controller
                 $subTest,
                 $attempt,
                 $allQuestions,
+                $answers,
                 $request,
                 $isShuffle,
                 $questionIdToNumber
@@ -415,6 +416,7 @@ class UserTestController extends Controller
                 'range_id' => $selectedRange->id,
             ]);
         }
+        $currentQuestion->load('choices');
         $rangeProgress = $this->rangeService->getRangeProgress(
             $answers,
             $selectedRange,
@@ -470,7 +472,7 @@ class UserTestController extends Controller
         return 1;
     }
 
-    private function handleNoRanges($test, $typeTest, $subTest, $attempt, $allQuestions, $request, $isShuffle, $questionIdToNumber)
+    private function handleNoRanges($test, $typeTest, $subTest, $attempt, $allQuestions, $answers, $request, $isShuffle, $questionIdToNumber)
     {
         $questions = $allQuestions;
         $totalQuestions = $allQuestions->count();
@@ -486,16 +488,9 @@ class UserTestController extends Controller
         }
 
         $currentQuestion = $questions[$currentQuestionIndex - 1];
-
-        $previousAnswer = AttemptAnswer::where([
-            'attempt_id' => $attempt->id,
-            'question_id' => $currentQuestion->id
-        ])->first();
-
-        $answeredQuestions = AttemptAnswer::where('attempt_id', $attempt->id)
-            ->whereIn('question_id', $allQuestions->pluck('id'))
-            ->whereNotNull('answer')
-            ->count();
+        $currentQuestion->load('choices');
+        $previousAnswer = $answers[$currentQuestion->id] ?? null;
+        $answeredQuestions = $answers->whereNotNull('answer')->count();
 
         return view('user.questions', [
             'test' => $test,

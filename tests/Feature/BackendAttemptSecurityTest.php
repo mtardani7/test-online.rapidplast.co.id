@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Attempt;
+use App\Models\AttemptAnswer;
 use App\Models\AttemptSubTest;
 use App\Models\AttemptTypeTest;
 use App\Models\QuestionChoices;
@@ -318,6 +319,90 @@ class BackendAttemptSecurityTest extends TestCase
         ])->assertRedirect();
         $this->post($url2, ['answers' => [$questionNull->id => null]])->assertRedirect();
         $this->assertDatabaseHas('attempt_answers', ['question_id' => $questionNull->id, 'answer' => null, 'is_correct' => false]);
+    }
+
+    public function test_questions_no_range_reuses_loaded_answers_and_loads_only_current_choices(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('questions-no-range-read-path');
+        $questions = [
+            $this->makeQuestion($subTest, 'Question one'),
+            $this->makeQuestion($subTest, 'Question two'),
+            $this->makeQuestion($subTest, 'Question three'),
+        ];
+        $choices = [];
+        foreach ($questions as $index => $question) {
+            $choices[$index] = QuestionChoices::create([
+                'questions_id' => $question->id, 'option_label' => 'A', 'option_text' => 'Choice '.$index,
+            ]);
+        }
+        $attemptService = app(AttemptService::class);
+        $attempt = $attemptService->getOrCreateAttempt($test, $user->id);
+        $typeAttempt = $attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
+        $attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
+        AttemptAnswer::create(['attempt_id' => $attempt->id, 'question_id' => $questions[0]->id, 'answer' => null, 'is_correct' => false]);
+        AttemptAnswer::create(['attempt_id' => $attempt->id, 'question_id' => $questions[1]->id, 'answer' => $choices[1]->id, 'is_correct' => true]);
+        AttemptAnswer::create(['attempt_id' => $attempt->id, 'question_id' => $questions[2]->id, 'answer' => $choices[2]->id, 'is_correct' => false]);
+
+        $queries = [];
+        $captureQueries = true;
+        DB::listen(function ($query) use (&$queries, &$captureQueries) {
+            if ($captureQueries) {
+                $queries[] = ['sql' => strtolower($query->sql), 'bindings' => $query->bindings];
+            }
+        });
+        $this->actingAs($user);
+        $view = app(\App\Http\Controllers\UserTestController::class)->questions(
+            $test,
+            $typeTest,
+            $subTest,
+            Request::create('/?question=2', 'GET')
+        );
+        $captureQueries = false;
+
+        $data = $view->getData();
+        $this->assertSame($questions[1]->id, $data['currentQuestion']->id);
+        $this->assertTrue($data['currentQuestion']->relationLoaded('choices'));
+        $this->assertSame([$choices[1]->id], $data['currentQuestion']->choices->pluck('id')->all());
+        $this->assertSame($choices[1]->id, (int) $data['previousAnswer']->answer);
+        $this->assertSame(2, $data['answeredQuestions']);
+
+        $questionReads = array_values(array_filter($queries, fn ($query) => str_contains($query['sql'], 'from "questions"')));
+        $this->assertCount(1, $questionReads);
+        $this->assertStringContainsString('select "id", "question_text", "question_optional", "image" from "questions"', $questionReads[0]['sql']);
+        $this->assertStringNotContainsString('select * from "questions"', $questionReads[0]['sql']);
+        $choiceReads = array_values(array_filter($queries, fn ($query) => str_contains($query['sql'], 'from "question_choices"')));
+        $this->assertCount(1, $choiceReads);
+        $this->assertStringContainsString('questions_id" in ('.$questions[1]->id.')', $choiceReads[0]['sql']);
+        $answerReads = array_values(array_filter($queries, fn ($query) => str_contains($query['sql'], 'from "attempt_answers"')));
+        $this->assertCount(1, $answerReads, 'No-range handling should reuse the already-loaded answer collection.');
+    }
+
+    public function test_questions_range_path_keeps_current_question_choices_available(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('questions-range-read-path');
+        $firstQuestion = $this->makeQuestion($subTest, 'Question one');
+        $currentQuestion = $this->makeQuestion($subTest, 'Question two');
+        $choice = QuestionChoices::create([
+            'questions_id' => $currentQuestion->id, 'option_label' => 'A', 'option_text' => 'Current choice',
+        ]);
+        DB::table('subtest_instruction_ranges')->insert([
+            'sub_test_id' => $subTest->id, 'start_number' => $firstQuestion->id, 'end_number' => $currentQuestion->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->actingAs($user);
+
+        $view = app(\App\Http\Controllers\UserTestController::class)->questions(
+            $test,
+            $typeTest,
+            $subTest,
+            Request::create('/?question=2', 'GET')
+        );
+
+        $data = $view->getData();
+        $this->assertSame($currentQuestion->id, $data['currentQuestion']->id);
+        $this->assertSame([$choice->id], $data['currentQuestion']->choices->pluck('id')->all());
     }
 
     public function test_question_create_and_edit_routes_use_existing_index_flow_and_validate_hierarchy(): void
