@@ -29,6 +29,7 @@ class BackendAttemptSecurityTest extends TestCase
         foreach ([
             'attempt_answers', 'attempt_sub_tests', 'attempt_type_tests', 'attempts',
             'question_choices', 'questions', 'sub_tests', 'type_tests', 'tests',
+            'detail_users',
             'model_has_permissions', 'model_has_roles', 'permissions', 'roles', 'users',
             'scoring_component', 'scoring_rules', 'iq_ranges', 'subtest_instruction_ranges',
         ] as $table) {
@@ -429,11 +430,82 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertFalse($multipleTestsView->getData()['tests']->last()->all_type_tests_completed);
     }
 
+    public function test_type_test_completion_queries_are_batched_as_type_count_grows(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        DB::table('detail_users')->insert([
+            'user_id' => $user->id, 'no_id' => 'ID-' . $user->id,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        [$test, $firstType, $firstSubTest] = $this->makeHierarchy('batch-type-listing');
+        $attempt = Attempt::create([
+            'user_id' => $user->id, 'test_id' => $test->id,
+            'total_correct' => 0, 'total_question' => 0, 'score' => 0,
+        ]);
+        $firstTypeAttempt = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $firstType->id,
+            'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+        \App\Models\AttemptSubTest::create([
+            'attempt_type_test_id' => $firstTypeAttempt->id, 'sub_test_id' => $firstSubTest->id,
+            'is_finished' => true, 'correct_count' => 0, 'wrong_count' => 0,
+        ]);
+
+        $this->actingAs($user);
+        $capture = false;
+        $subAttemptQueryCount = 0;
+        DB::listen(function ($query) use (&$capture, &$subAttemptQueryCount) {
+            if ($capture && str_contains(strtolower($query->sql), 'attempt_sub_tests')) {
+                $subAttemptQueryCount++;
+            }
+        });
+
+        $capture = true;
+        $smallView = app(\App\Http\Controllers\UserTestController::class)->typeTests($test);
+        $capture = false;
+        $smallQueryCount = $subAttemptQueryCount;
+        $this->assertTrue($smallView->getData()['typeTests']->first()->all_subtests_completed);
+
+        foreach ([2, 3, 4] as $index) {
+            $typeId = DB::table('type_tests')->insertGetId([
+                'tests_id' => $test->id, 'name' => "Type {$index}", 'slug' => "batch-type-{$index}",
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $subTestId = DB::table('sub_tests')->insertGetId([
+                'type_tests_id' => $typeId, 'name' => "Sub {$index}", 'slug' => "batch-sub-{$index}",
+                'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $typeAttemptId = DB::table('attempt_type_tests')->insertGetId([
+                'attempt_id' => $attempt->id, 'type_test_id' => $typeId,
+                'correct' => 0, 'total' => 0, 'score' => 0, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            DB::table('attempt_sub_tests')->insert([
+                'attempt_type_test_id' => $typeAttemptId, 'sub_test_id' => $subTestId,
+                'score' => 0, 'correct_count' => 0, 'wrong_count' => 0,
+                'is_finished' => $index !== 2, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+
+        $subAttemptQueryCount = 0;
+        $capture = true;
+        $largeView = app(\App\Http\Controllers\UserTestController::class)->typeTests($test->fresh());
+        $capture = false;
+        $this->assertSame($smallQueryCount, $subAttemptQueryCount);
+        $typeTests = $largeView->getData()['typeTests']->keyBy('id');
+        $this->assertTrue($typeTests->get($firstType->id)->all_subtests_completed);
+        $this->assertFalse($typeTests->get(2)->all_subtests_completed);
+        $this->assertTrue($typeTests->get(3)->all_subtests_completed);
+        $this->assertSame(4, $typeTests->count());
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id(); $table->string('name'); $table->string('email')->unique();
             $table->string('password'); $table->timestamp('email_verified_at')->nullable(); $table->timestamps();
+        });
+        Schema::create('detail_users', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('user_id'); $table->string('no_id')->nullable(); $table->timestamps();
         });
         Schema::create('roles', function (Blueprint $table) {
             $table->id(); $table->string('name'); $table->string('guard_name')->default('web'); $table->timestamps();

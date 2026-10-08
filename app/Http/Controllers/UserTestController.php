@@ -197,24 +197,33 @@ class UserTestController extends Controller
         }
 
         $attempt = $this->attemptService->getOrCreateAttempt($test);
+        $test->load('typeTests.subTests');
+        $typeTests = $test->typeTests;
 
-        foreach ($test->typeTests as $typeTest) {
+        foreach ($typeTests as $typeTest) {
             $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
         }
 
-        $typeTests = $test->typeTests;
-        $typeTests->each(function ($typeTest) use ($attempt) {
-            $typeAttempt = AttemptTypeTest::where('attempt_id', $attempt->id)
-                ->where('type_test_id', $typeTest->id)
-                ->first();
-            
+        $attemptTypeTests = AttemptTypeTest::query()
+            ->where('attempt_id', $attempt->id)
+            ->whereIn('type_test_id', $typeTests->pluck('id'))
+            ->get(['id', 'type_test_id'])
+            ->keyBy('type_test_id');
+        $attemptTypeTestIds = $attemptTypeTests->pluck('id');
+        $completedSubTestCounts = AttemptSubTest::query()
+            ->whereIn('attempt_type_test_id', $attemptTypeTestIds)
+            ->where('is_finished', 1)
+            ->get(['attempt_type_test_id'])
+            ->groupBy('attempt_type_test_id')
+            ->map(fn ($subAttempts) => $subAttempts->count());
+
+        $typeTests->each(function ($typeTest) use ($attemptTypeTests, $completedSubTestCounts) {
+            $typeAttempt = $attemptTypeTests->get($typeTest->id);
+
             if ($typeAttempt) {
-                $completedSubTests = AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)
-                    ->where('is_finished', 1)
-                    ->count();
-                
-                $totalSubTests = $typeTest->subTests()->count();
-                
+                $completedSubTests = $completedSubTestCounts->get($typeAttempt->id, 0);
+                $totalSubTests = $typeTest->subTests->count();
+
                 $typeTest->all_subtests_completed = ($completedSubTests >= $totalSubTests) && ($totalSubTests > 0);
             } else {
                 $typeTest->all_subtests_completed = false;
