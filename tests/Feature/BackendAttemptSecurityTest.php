@@ -14,6 +14,7 @@ use App\Models\Tests as TestModel;
 use App\Models\TypeTests;
 use App\Models\User;
 use App\Services\AttemptService;
+use App\Services\ScoringService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1316,6 +1317,101 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertSame(9, (int) $attempt->fresh()->total_correct);
         $this->assertSame(13, (int) $attempt->fresh()->total_question);
         $this->assertSame(9, (int) $attempt->fresh()->score);
+    }
+
+    public function test_scoring_reuses_rules_and_eager_loaded_subanswers_while_preserving_tpa_results(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeA, $subA] = $this->makeHierarchy('scoring-phase8');
+        DB::table('tests')->where('id', $test->id)->update(['type' => 'TPA']);
+
+        $subBId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeA->id, 'name' => 'Second subtest', 'slug' => 'scoring-phase8-sub-b',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $typeBId = DB::table('type_tests')->insertGetId([
+            'tests_id' => $test->id, 'name' => 'Second type', 'slug' => 'scoring-phase8-type-b',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $subCId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeBId, 'name' => 'Third subtest', 'slug' => 'scoring-phase8-sub-c',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $attempt = Attempt::create([
+            'user_id' => $user->id, 'test_id' => $test->id,
+            'total_correct' => 0, 'total_question' => 0, 'score' => 0,
+        ]);
+        $typeAttemptA = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeA->id,
+            'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+        $typeAttemptB = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeBId,
+            'correct' => 0, 'total' => 0, 'score' => 0,
+        ]);
+        $subAttemptA = AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptA->id, 'sub_test_id' => $subA->id,
+            'correct_count' => 2, 'wrong_count' => 1, 'score' => 0,
+        ]);
+        AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptA->id, 'sub_test_id' => $subBId,
+            'correct_count' => 1, 'wrong_count' => 2, 'score' => 0,
+        ]);
+        AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptB->id, 'sub_test_id' => $subCId,
+            'correct_count' => 3, 'wrong_count' => 0, 'score' => 0,
+        ]);
+
+        $scoringRuleId = DB::table('scoring_rules')->insertGetId([
+            'test_id' => $test->id, 'formula' => '2+3', 'description' => 'Phase 8 regression',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('scoring_component')->insert([
+            'scoring_rule_id' => $scoringRuleId, 'key' => 'correct', 'description' => 'Correct answers',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('iq_ranges')->insert([
+            'test_type' => 'TPA', 'raw_min' => 5, 'raw_max' => 5, 'iq_score' => 120, 'category' => 'Superior',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        request()->attributes->remove(ScoringService::class . ':scoring_rules');
+        $capturing = true;
+        $queries = [];
+        DB::listen(function ($query) use (&$capturing, &$queries) {
+            if ($capturing) {
+                $queries[] = strtolower($query->sql);
+            }
+        });
+
+        $this->assertSame(5.0, ScoringService::calculateSubTestScore($subAttemptA));
+        $this->assertSame(5.0, ScoringService::calculateTypeTestScore($typeAttemptA));
+        $this->assertSame(5.0, ScoringService::calculateTypeTestScore($typeAttemptB));
+        $capturing = false;
+
+        $this->assertSame(1, count(array_filter($queries, fn ($sql) => str_contains($sql, 'from "scoring_rules"'))));
+        $this->assertSame(1, count(array_filter($queries, fn ($sql) => str_contains($sql, 'from "scoring_component"'))));
+        $cachedRules = request()->attributes->get(ScoringService::class . ':scoring_rules');
+        $this->assertTrue($cachedRules[(string) $test->id]->relationLoaded('components'));
+        $this->assertSame(5.0, (float) $subAttemptA->fresh()->score);
+        $this->assertSame(5.0, (float) $typeAttemptA->fresh()->score);
+        $this->assertSame(3, (int) $typeAttemptA->fresh()->correct);
+        $this->assertSame(6, (int) $typeAttemptA->fresh()->total);
+
+        $attemptForScoring = Attempt::findOrFail($attempt->id);
+        $queries = [];
+        $capturing = true;
+        $attemptScore = ScoringService::calculateAttemptScore($attemptForScoring);
+        $capturing = false;
+
+        $this->assertSame(5.0, $attemptScore);
+        $this->assertSame(6, (int) $attemptForScoring->fresh()->total_correct);
+        $this->assertSame(9, (int) $attemptForScoring->fresh()->total_question);
+        $this->assertSame(120, (int) $attemptForScoring->fresh()->iq_score);
+        $this->assertSame('Superior', $attemptForScoring->fresh()->iq_category);
+        $this->assertCount(1, array_filter($queries, fn ($sql) => str_contains($sql, 'from "attempt_sub_tests"')));
+        $this->assertCount(0, array_filter($queries, fn ($sql) => str_contains($sql, 'from "scoring_rules"')));
     }
 
     private function createTables(): void

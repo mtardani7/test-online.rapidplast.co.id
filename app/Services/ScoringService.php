@@ -13,9 +13,20 @@ use Illuminate\Support\Facades\Log;
 
 class ScoringService
 {
+    private const SCORING_RULES_REQUEST_ATTRIBUTE = self::class . ':scoring_rules';
+
     public static function calculateScore($testId, $variables = [])
     {
-        $scoringRule = ScoringRule::with('components')->where('test_id', $testId)->first();
+        $request = request();
+        $scoringRules = $request->attributes->get(self::SCORING_RULES_REQUEST_ATTRIBUTE, []);
+        $testKey = (string) $testId;
+
+        if (!array_key_exists($testKey, $scoringRules)) {
+            $scoringRules[$testKey] = ScoringRule::with('components')->where('test_id', $testId)->first();
+            $request->attributes->set(self::SCORING_RULES_REQUEST_ATTRIBUTE, $scoringRules);
+        }
+
+        $scoringRule = $scoringRules[$testKey];
         if (!$scoringRule || empty(trim($scoringRule->formula))) {
             return self::calculateDefaultScore($variables);
         }
@@ -357,23 +368,16 @@ class ScoringService
         $allScores = [];
         
         foreach ($typeAttempts as $typeAttempt) {
-            $typeVariables = self::collectTypeTestVariables($typeAttempt);
+            $typeTest = $typeAttempt->typeTest;
+            $subTestNameVariables = $typeTest ? [] : null;
+            $typeVariables = self::collectTypeTestVariables($typeAttempt, $subTestNameVariables);
             $variables['total_correct'] += $typeVariables['correct'] ?? 0;
             $variables['total_question'] += $typeVariables['total'] ?? 0;
             $variables['total_score'] += $typeVariables['score'] ?? 0;
-            if ($typeAttempt->typeTest) {
-                $typeName = $typeAttempt->typeTest->name;
-                $subAttempts = $typeAttempt->subAnswers;
-                foreach ($subAttempts as $subAttempt) {
-                    if ($subAttempt->subTest) {
-                        $subName = $subAttempt->subTest->name;
-                        $subCorrect = $subAttempt->correct_count ?? 0;
-                        $nameVariations = self::generateAllVariations($subName);
-                        foreach ($nameVariations as $variation) {
-                            $variables[$variation] = $subCorrect;
-                            $allScores[$variation] = $subCorrect;
-                        }
-                    }
+            if (is_array($subTestNameVariables)) {
+                foreach ($subTestNameVariables as $variation => $subCorrect) {
+                    $variables[$variation] = $subCorrect;
+                    $allScores[$variation] = $subCorrect;
                 }
             }
         }
@@ -381,9 +385,14 @@ class ScoringService
         return $variables;
     }
 
-    private static function collectTypeTestVariables(AttemptTypeTest $attemptTypeTest)
+    private static function collectTypeTestVariables(AttemptTypeTest $attemptTypeTest, ?array &$attemptSubTestVariables = null)
     {
-        $subAttempts = $attemptTypeTest->subAnswers()->with('subTest')->get();
+        if ($attemptTypeTest->relationLoaded('subAnswers')) {
+            $subAttempts = $attemptTypeTest->subAnswers;
+            $subAttempts->loadMissing('subTest');
+        } else {
+            $subAttempts = $attemptTypeTest->subAnswers()->with('subTest')->get();
+        }
         
         $variables = [
             'correct' => 0,
@@ -393,18 +402,25 @@ class ScoringService
         ];
 
         foreach ($subAttempts as $subAttempt) {
-            $subVariables = self::collectSubTestVariables($subAttempt);
+            $subTestNameVariations = [];
+            $subVariables = self::collectSubTestVariables($subAttempt, $subTestNameVariations);
             
             $variables['correct'] += $subVariables['correct'] ?? 0;
             $variables['wrong'] += $subVariables['wrong'] ?? 0;
             $variables['total'] += $subVariables['total'] ?? 0;
             $variables['score'] += $subVariables['score'] ?? 0;
+
+            if ($attemptSubTestVariables !== null && $subAttempt->subTest) {
+                foreach ($subTestNameVariations as $variation) {
+                    $attemptSubTestVariables[$variation] = $subAttempt->correct_count ?? 0;
+                }
+            }
         }
 
         return $variables;
     }
 
-    private static function collectSubTestVariables(AttemptSubTest $attemptSubTest)
+    private static function collectSubTestVariables(AttemptSubTest $attemptSubTest, ?array &$subTestNameVariations = null)
     {
         $correct = $attemptSubTest->correct_count ?? 0;
         $wrong = $attemptSubTest->wrong_count ?? 0;
@@ -422,6 +438,7 @@ class ScoringService
             $subSlug = $attemptSubTest->subTest->slug;
             
             $nameVariations = self::generateAllVariations($subName);
+            $subTestNameVariations = $nameVariations;
             $slugVariations = self::generateAllVariations($subSlug);
             $allVariations = array_unique(array_merge($nameVariations, $slugVariations));
             
