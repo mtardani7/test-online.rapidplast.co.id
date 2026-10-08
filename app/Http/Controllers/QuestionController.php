@@ -69,15 +69,29 @@ class QuestionController extends Controller
                 $query->whereNull('correct_option_id');
             }
         }
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
+        $sortColumns = [
+            'created_at' => 'created_at',
+            'question_text' => 'question_text',
+        ];
+        $requestedSortBy = $request->input('sort_by', 'created_at');
+        $sortBy = is_string($requestedSortBy) && isset($sortColumns[$requestedSortBy])
+            ? $sortColumns[$requestedSortBy]
+            : $sortColumns['created_at'];
+        $requestedSortOrder = $request->input('sort_order', 'desc');
+        $sortOrder = is_string($requestedSortOrder) ? strtolower($requestedSortOrder) : 'desc';
+        $sortOrder = in_array($sortOrder, ['asc', 'desc'], true) ? $sortOrder : 'desc';
         $query->orderBy($sortBy, $sortOrder);
         $questions = $query->paginate(10)->withQueryString();
-        $totalQuestions = $subTest->questions()->count();
-        $questionsWithImage = $subTest->questions()->whereNotNull('image')->count();
+
+        // The paginator total includes active filters; these statistics cover the whole subtest.
+        $questionStatistics = $subTest->questions()
+            ->selectRaw('COUNT(*) AS total_questions, SUM(CASE WHEN image IS NOT NULL THEN 1 ELSE 0 END) AS questions_with_image')
+            ->first();
+        $totalQuestions = (int) ($questionStatistics->total_questions ?? 0);
+        $questionsWithImage = (int) ($questionStatistics->questions_with_image ?? 0);
         $totalChoices = QuestionChoices::whereIn(
             QuestionChoices::questionForeignKey(),
-            $subTest->questions()->pluck('id')
+            $subTest->questions()->select('id')
         )->count();
         $avgChoices = $totalQuestions > 0 ? round($totalChoices / $totalQuestions, 1) : 0;
         

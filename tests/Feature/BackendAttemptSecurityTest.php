@@ -292,6 +292,78 @@ class BackendAttemptSecurityTest extends TestCase
             ->assertRedirect(route('question.index', [$testA->slug, $typeA->slug, $subA->slug]));
     }
 
+    public function test_question_index_sort_filters_pagination_statistics_and_hierarchy(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('question-index-phase-6g');
+        [, , $otherSubTest] = $this->makeHierarchy('question-index-other-6g');
+
+        $questions = [];
+        for ($index = 1; $index <= 12; $index++) {
+            $text = $index === 1 ? 'Needle searchable question' : sprintf('Question %02d', $index);
+            $question = $this->makeQuestion($subTest, $text);
+            DB::table('questions')->where('id', $question->id)->update([
+                'created_at' => sprintf('2025-01-%02d 00:00:00', $index),
+                'image' => $index % 3 === 0 ? 'questions/image-'.$index.'.jpg' : null,
+            ]);
+            $choiceCount = $index <= 6 ? 2 : 1;
+            for ($choiceIndex = 1; $choiceIndex <= $choiceCount; $choiceIndex++) {
+                $choiceId = DB::table('question_choices')->insertGetId([
+                    'questions_id' => $question->id,
+                    'option_label' => chr(64 + $choiceIndex),
+                    'option_text' => $index === 2 && $choiceIndex === 1 ? 'Choice Needle' : "Option {$index}-{$choiceIndex}",
+                    'created_at' => now(), 'updated_at' => now(),
+                ]);
+                if ($choiceIndex === 1 && $index % 2 === 0) {
+                    DB::table('questions')->where('id', $question->id)->update(['correct_option_id' => $choiceId]);
+                }
+            }
+            $questions[$index] = $question;
+        }
+        $foreignQuestion = $this->makeQuestion($otherSubTest, 'Foreign question');
+
+        $this->actingAs($admin);
+        $url = fn (array $query = []) => route('question.index', [$test->slug, $typeTest->slug, $subTest->slug] + $query);
+        $response = $this->get($url());
+        $response->assertOk()->assertViewHas('questions', function ($paginator) use ($questions) {
+            return $paginator->perPage() === 10
+                && $paginator->total() === 12
+                && $paginator->first()->id === $questions[12]->id;
+        })->assertViewHas('totalQuestions', 12)
+            ->assertViewHas('questionsWithImage', 4)
+            ->assertViewHas('avgChoices', 1.5);
+
+        foreach ([
+            [['sort_by' => 'created_at', 'sort_order' => 'asc'], $questions[1]->id, $questions[10]->id],
+            [['sort_by' => 'question_text', 'sort_order' => 'asc'], $questions[1]->id, $questions[10]->id],
+            [['sort_by' => 'question_text', 'sort_order' => 'desc'], $questions[12]->id, $questions[3]->id],
+            [['sort_by' => 'question_text; DROP TABLE questions', 'sort_order' => 'asc'], $questions[1]->id, $questions[10]->id],
+            [['sort_by' => 'question_text', 'sort_order' => 'desc, (SELECT 1)'], $questions[12]->id, $questions[3]->id],
+        ] as [$query, $firstId, $lastId]) {
+            $sorted = $this->get($url($query))->assertOk()->viewData('questions');
+            $this->assertSame($firstId, $sorted->getCollection()->first()->id);
+            $this->assertSame($lastId, $sorted->getCollection()->last()->id);
+        }
+
+        $this->get($url(['search' => 'Needle']))->assertViewHas('questions', fn ($paginator) => $paginator->total() === 2);
+        $this->get($url(['has_image' => 'yes']))->assertViewHas('questions', fn ($paginator) => $paginator->total() === 4);
+        $this->get($url(['has_image' => 'no']))->assertViewHas('questions', fn ($paginator) => $paginator->total() === 8);
+        $this->get($url(['has_correct' => 'yes']))->assertViewHas('questions', fn ($paginator) => $paginator->total() === 6);
+        $this->get($url(['has_correct' => 'no']))->assertViewHas('questions', fn ($paginator) => $paginator->total() === 6);
+
+        $pageTwo = $this->get($url(['search' => 'Question', 'sort_by' => 'question_text', 'sort_order' => 'asc', 'page' => 2]));
+        $pageTwo->assertOk()->assertViewHas('questions', function ($paginator) {
+            return $paginator->perPage() === 10
+                && $paginator->currentPage() === 2
+                && $paginator->total() === 12
+                && str_contains($paginator->url(1), 'search=Question')
+                && str_contains($paginator->url(1), 'sort_by=question_text');
+        });
+
+        $this->get(route('question.index', [$test->slug, $typeTest->slug, $otherSubTest->slug]))->assertNotFound();
+        $this->assertDatabaseHas('questions', ['id' => $foreignQuestion->id, 'sub_tests_id' => $otherSubTest->id]);
+    }
+
     public function test_home_create_and_edit_routes_reuse_existing_test_management_view(): void
     {
         [$admin] = $this->makeUserWithRole('admin');
