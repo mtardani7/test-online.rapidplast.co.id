@@ -6,6 +6,7 @@ use App\Models\Tests;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Support\ViewErrorBag;
 use App\Models\Attempt;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +56,7 @@ class HomeController extends Controller
             $testAttempts[$test->id] = $uniqueAttempts;
         }
         $success = session('success');
-        $errors = session('errors');
+        $errors = session('errors') ?? new ViewErrorBag();
         $oldInput = session('old_input', []);
 
         return view('admin.home', compact(

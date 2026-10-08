@@ -96,6 +96,15 @@ class BackendAttemptSecurityTest extends TestCase
         $this->actingAs($user)->get(route('dashboard.users'))->assertForbidden();
     }
 
+    public function test_admin_dashboard_renders_without_validation_errors_in_session(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk();
+    }
+
     public function test_user_listing_search_and_filters_run_against_detail_fields(): void
     {
         [$admin] = $this->makeUserWithRole('admin');
