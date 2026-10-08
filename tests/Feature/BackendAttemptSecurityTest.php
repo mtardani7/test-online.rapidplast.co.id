@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Attempt;
+use App\Models\AttemptSubTest;
 use App\Models\AttemptTypeTest;
 use App\Models\QuestionChoices;
 use App\Models\Questions;
@@ -223,25 +224,68 @@ class BackendAttemptSecurityTest extends TestCase
         [$user] = $this->makeUserWithRole(null);
         [$test, $type, $sub] = $this->makeHierarchy('submit');
         [$question, $correctOption] = $this->makeQuestionWithChoices($sub, 'A question');
+        [$wrongQuestion, , $wrongOption] = $this->makeQuestionWithChoices($sub, 'Another question');
+        DB::table('tests')->where('id', $test->id)->update(['type' => 'TPA']);
+        DB::table('iq_ranges')->insert([
+            'test_type' => 'TPA', 'raw_min' => 1, 'raw_max' => 1, 'iq_score' => 115,
+            'category' => 'Above Average', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $queries = [];
+        $captureQueries = true;
+        DB::listen(function ($query) use (&$queries, &$captureQueries) {
+            if ($captureQueries) {
+                $queries[] = strtolower($query->sql);
+            }
+        });
 
         $this->actingAs($user)
             ->post(route('user.questions.submit-all', [$test->slug, $type->slug, $sub->slug]), [
-                'answers' => [$question->id => $correctOption->id],
+                'answers' => [$question->id => $correctOption->id, $wrongQuestion->id => $wrongOption->id],
                 'is_correct' => false,
                 'score' => 999999,
                 'correct_option_id' => 0,
                 'total_correct' => 999999,
             ])
             ->assertRedirect();
+        $captureQueries = false;
 
         $this->assertDatabaseHas('attempt_answers', [
             'question_id' => $question->id,
             'answer' => (string) $correctOption->id,
             'is_correct' => true,
         ]);
+        $this->assertDatabaseHas('attempt_answers', [
+            'question_id' => $wrongQuestion->id,
+            'answer' => (string) $wrongOption->id,
+            'is_correct' => false,
+        ]);
         $attempt = Attempt::where('user_id', $user->id)->where('test_id', $test->id)->firstOrFail();
+        $subAttempt = AttemptSubTest::where('sub_test_id', $sub->id)->firstOrFail();
+        $typeAttempt = AttemptTypeTest::where('type_test_id', $type->id)->firstOrFail();
+
+        $this->assertSame(1, (int) $subAttempt->correct_count);
+        $this->assertSame(1, (int) $subAttempt->wrong_count);
+        $this->assertTrue((bool) $subAttempt->is_finished);
+        $this->assertSame(1.0, (float) $subAttempt->score);
+        $this->assertSame(1, (int) $typeAttempt->correct);
+        $this->assertSame(2, (int) $typeAttempt->total);
+        $this->assertSame(1.0, (float) $typeAttempt->score);
         $this->assertSame(1, (int) $attempt->total_correct);
-        $this->assertNotSame(999999, (int) $attempt->score);
+        $this->assertSame(2, (int) $attempt->total_question);
+        $this->assertSame(1.0, (float) $attempt->score);
+        $this->assertSame(115, (int) $attempt->iq_score);
+        $this->assertSame('Above Average', $attempt->iq_category);
+
+        $answerReads = array_values(array_filter($queries, fn ($sql) => str_contains($sql, 'from "attempt_answers"')));
+        $this->assertCount(1, $answerReads);
+        $this->assertStringContainsString('sum(case when is_correct = 1', $answerReads[0]);
+        $this->assertStringContainsString('sum(case when is_correct = 0', $answerReads[0]);
+        foreach ($queries as $sql) {
+            if (str_contains($sql, 'attempt_sub_tests') || str_contains($sql, 'attempt_type_tests')) {
+                $this->assertStringNotContainsString('sum(', $sql);
+            }
+        }
     }
 
     public function test_submit_all_preserves_omitted_answers_and_null_clears_only_submitted_question(): void
@@ -421,6 +465,7 @@ class BackendAttemptSecurityTest extends TestCase
 
         $valid = $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeAId]), $testA, $typeA, $subA);
         $this->assertSame(302, $valid->getStatusCode());
+        $this->assertDatabaseCount('attempts', 0);
 
         try {
             $controller->completeRange(Request::create('/', 'POST', ['range_id' => $rangeBId]), $testA, $typeA, $subA);
@@ -435,6 +480,90 @@ class BackendAttemptSecurityTest extends TestCase
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
             $this->assertSame(404, $exception->getStatusCode());
         }
+    }
+
+    public function test_complete_range_preserves_next_question_navigation_and_uses_id_only_query(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('complete-range-navigation');
+        $questions = [];
+        for ($index = 1; $index <= 4; $index++) {
+            $questions[] = $this->makeQuestion($subTest, 'Question '.$index);
+        }
+        $firstRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subTest->id, 'start_number' => $questions[0]->id, 'end_number' => $questions[1]->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $nextRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subTest->id, 'start_number' => $questions[2]->id, 'end_number' => $questions[3]->id,
+            'order_number' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $inactiveRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $subTest->id, 'start_number' => $questions[0]->id, 'end_number' => $questions[0]->id,
+            'order_number' => 3, 'is_active' => false, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $controller = app(\App\Http\Controllers\UserTestController::class);
+        $this->actingAs($user);
+
+        $queries = [];
+        $captureQueries = true;
+        DB::listen(function ($query) use (&$queries, &$captureQueries) {
+            if ($captureQueries) {
+                $queries[] = strtolower($query->sql);
+            }
+        });
+        $next = $controller->completeRange(Request::create('/', 'POST', ['range_id' => $firstRangeId]), $test, $typeTest, $subTest);
+        $captureQueries = false;
+
+        $this->assertSame(route('user.questions', [
+            'test' => $test->slug, 'typeTest' => $typeTest->slug, 'subTest' => $subTest->slug,
+            'question' => 3, 'range_id' => $nextRangeId,
+        ]), $next->getTargetUrl());
+        $questionReads = array_values(array_filter($queries, fn ($sql) => str_contains($sql, 'from "questions"')));
+        $this->assertCount(1, $questionReads);
+        $this->assertStringContainsString('select "id" from "questions"', $questionReads[0]);
+        foreach ($queries as $sql) {
+            $this->assertStringNotContainsString('insert into "attempts"', $sql);
+        }
+        $this->assertDatabaseCount('attempts', 0);
+
+        $lastRange = $controller->completeRange(Request::create('/', 'POST', ['range_id' => $nextRangeId]), $test, $typeTest, $subTest);
+        $this->assertSame(route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]), $lastRange->getTargetUrl());
+        $inactiveRange = $controller->completeRange(Request::create('/', 'POST', ['range_id' => $inactiveRangeId]), $test, $typeTest, $subTest);
+        $this->assertSame(route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]), $inactiveRange->getTargetUrl());
+
+        [$shuffleTest, $shuffleType, $shuffleSub] = $this->makeHierarchy('complete-range-shuffled-navigation');
+        DB::table('tests')->where('id', $shuffleTest->id)->update(['is_shuffle' => true]);
+        $shuffleTest->refresh();
+        $shuffledQuestions = [];
+        for ($index = 1; $index <= 4; $index++) {
+            $shuffledQuestions[] = $this->makeQuestion($shuffleSub, 'Shuffled question '.$index);
+        }
+        $shuffleFirstRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $shuffleSub->id, 'start_number' => $shuffledQuestions[0]->id, 'end_number' => $shuffledQuestions[1]->id,
+            'order_number' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $shuffleNextRangeId = DB::table('subtest_instruction_ranges')->insertGetId([
+            'sub_test_id' => $shuffleSub->id, 'start_number' => $shuffledQuestions[2]->id, 'end_number' => $shuffledQuestions[3]->id,
+            'order_number' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $allQuestions = $shuffleSub->questions()->select('id')->orderBy('id')->get();
+        $shuffleService = app(\App\Services\ShuffleService::class);
+        $expectedQuestionNumber = $shuffleService->createQuestionIdToNumberMap(
+            $shuffleService->getUniqueShuffledQuestions($user, $shuffleTest, $shuffleSub, $allQuestions)
+        )[$shuffledQuestions[2]->id] ?? 1;
+
+        $shuffleNext = $controller->completeRange(
+            Request::create('/', 'POST', ['range_id' => $shuffleFirstRangeId]),
+            $shuffleTest,
+            $shuffleType,
+            $shuffleSub
+        );
+        $this->assertSame(route('user.questions', [
+            'test' => $shuffleTest->slug, 'typeTest' => $shuffleType->slug, 'subTest' => $shuffleSub->slug,
+            'question' => $expectedQuestionNumber, 'range_id' => $shuffleNextRangeId,
+        ]), $shuffleNext->getTargetUrl());
+        $this->assertDatabaseCount('attempts', 0);
     }
 
     public function test_question_routes_enforce_all_three_levels_of_test_hierarchy(): void

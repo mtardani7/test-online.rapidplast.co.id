@@ -607,13 +607,17 @@ class UserTestController extends Controller
                 );
             }
 
-            $persistedAnswers = AttemptAnswer::query()
+            $answerStatistics = AttemptAnswer::query()
                 ->where('attempt_id', $attemptId)
                 ->whereIn('question_id', $questions->pluck('id'))
                 ->whereNotNull('answer')
-                ->get(['is_correct']);
-            $correctCount = $persistedAnswers->where('is_correct', true)->count();
-            $wrongCount = $persistedAnswers->where('is_correct', false)->count();
+                ->selectRaw(
+                    'SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, '
+                    . 'SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) AS wrong_count'
+                )
+                ->first();
+            $correctCount = (int) ($answerStatistics->correct_count ?? 0);
+            $wrongCount = (int) ($answerStatistics->wrong_count ?? 0);
             $subAttempt->update([
                 'correct_count' => $correctCount,
                 'wrong_count' => $wrongCount,
@@ -622,34 +626,9 @@ class UserTestController extends Controller
             ]);
             $scoringService = new \App\Services\ScoringService();
 
-            $subScore = $scoringService->calculateSubTestScore($subAttempt);
-            $subAttempt->update(['score' => $subScore]);
-            $typeStats = AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)
-                ->selectRaw('
-                    SUM(correct_count) as correct,
-                    SUM(correct_count + wrong_count) as total
-                ')
-                ->first();
-
-            $typeAttempt->update([
-                'correct' => $typeStats->correct ?? 0,
-                'total' => $typeStats->total ?? 0,
-                'score' => $scoringService->calculateTypeTestScore($typeAttempt),
-                'updated_at' => $now,
-            ]);
-            $attemptStats = AttemptTypeTest::where('attempt_id', $attempt->id)
-                ->selectRaw('
-                    SUM(correct) as total_correct,
-                    SUM(total) as total_question
-                ')
-                ->first();
-
-            $attempt->update([
-                'total_correct' => $attemptStats->total_correct ?? 0,
-                'total_question' => $attemptStats->total_question ?? 0,
-                'score' => $scoringService->calculateAttemptScore($attempt),
-                'updated_at' => $now,
-            ]);
+            $scoringService->calculateSubTestScore($subAttempt);
+            $scoringService->calculateTypeTestScore($typeAttempt);
+            $scoringService->calculateAttemptScore($attempt);
             return redirect()
                 ->route('user.sub-tests', [
                     'test' => $test->slug,
@@ -760,10 +739,9 @@ class UserTestController extends Controller
         ]);
         
         $user = Auth::user();
-        $attempt = $this->attemptService->getOrCreateAttempt($test);
         $range = $subTest->instructionRanges()->whereKey($request->range_id)->firstOrFail();
         
-        $allQuestions = $subTest->questions()->orderBy('id')->get();
+        $allQuestions = $subTest->questions()->select('id')->orderBy('id')->get();
         $isShuffle = $test->is_shuffle == 1;
         
         if ($isShuffle) {
