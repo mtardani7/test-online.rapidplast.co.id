@@ -4,100 +4,83 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Http;
+use Carbon\CarbonImmutable;
 
 class TableUserController extends Controller
 {
     public function index(Request $request)
     {
-        $allUsers = User::with(['detail', 'roles'])
+        $query = User::query()
+            ->select('users.*')
+            ->leftJoin('detail_users as user_details', 'user_details.user_id', '=', 'users.id')
+            ->with('detail')
             ->whereDoesntHave('roles', function($query) {
                 $query->whereIn('name', ['admin', 'super_admin']);
-            })
-            ->get();
-        if ($request->has('search') && $request->search != '') {
-            $searchTerm = strtolower($request->search);
-            $allUsers = $allUsers->filter(function($user) use ($searchTerm) {
-                $name = strtolower(optional($user->detail)->name ?? '');
-                $email = strtolower($user->email);
-                $school = strtolower(optional($user->detail)->school ?? '');
-                
-                return str_contains($name, $searchTerm) || 
-                       str_contains($email, $searchTerm) || 
-                       str_contains($school, $searchTerm);
+            });
+
+        $search = $request->input('search');
+        if (is_string($search) && $search !== '') {
+            $term = '%'.mb_strtolower($search).'%';
+            $query->where(function ($query) use ($term) {
+                $query->whereRaw('LOWER(COALESCE(user_details.name, \'\')) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(users.email) LIKE ?', [$term])
+                    ->orWhereRaw('LOWER(COALESCE(user_details.school, \'\')) LIKE ?', [$term]);
             });
         }
-        
-        if ($request->has('gender') && $request->gender != '') {
-            $allUsers = $allUsers->filter(function($user) use ($request) {
-                return optional($user->detail)->gender == $request->gender;
-            });
+
+        if (is_string($request->input('gender')) && $request->input('gender') !== '') {
+            $query->where('user_details.gender', $request->input('gender'));
         }
-        
-        if ($request->has('min_age') && $request->min_age != '') {
-            $allUsers = $allUsers->filter(function($user) use ($request) {
-                $birthDate = optional($user->detail)->birth_date;
-                if (!$birthDate) return false;
-                
-                $age = \Carbon\Carbon::parse($birthDate)->age;
-                return $age >= $request->min_age;
-            });
+
+        $today = CarbonImmutable::today();
+        $minAge = $request->input('min_age');
+        if (is_numeric($minAge) && $minAge !== '') {
+            $query->whereDate('user_details.birth_date', '<=', $today->subYears((int) ceil((float) $minAge))->toDateString());
         }
-        
-        if ($request->has('max_age') && $request->max_age != '') {
-            $allUsers = $allUsers->filter(function($user) use ($request) {
-                $birthDate = optional($user->detail)->birth_date;
-                if (!$birthDate) return false;
-                
-                $age = \Carbon\Carbon::parse($birthDate)->age;
-                return $age <= $request->max_age;
-            });
+
+        $maxAge = $request->input('max_age');
+        if (is_numeric($maxAge) && $maxAge !== '') {
+            $query->whereDate('user_details.birth_date', '>=', $today->subYears((int) floor((float) $maxAge) + 1)->addDay()->toDateString());
         }
-        if ($request->has('min_gpa') && $request->min_gpa != '') {
-            $allUsers = $allUsers->filter(function($user) use ($request) {
-                $gpa = optional($user->detail)->gpa;
-                return $gpa && $gpa >= $request->min_gpa;
-            });
+
+        $minGpa = $request->input('min_gpa');
+        if ($minGpa !== null && $minGpa !== '') {
+            $query->whereNotNull('user_details.gpa')
+                ->whereRaw('CAST(user_details.gpa AS DECIMAL(10, 2)) >= ?', [$minGpa]);
         }
-        $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
-        
-        $allUsers = $allUsers->sortBy(function($user) use ($sortBy, $sortOrder) {
-            switch($sortBy) {
-                case 'name':
-                    return optional($user->detail)->name ?? $user->email;
-                case 'email':
-                    return $user->email;
-                case 'gender':
-                    return optional($user->detail)->gender ?? '';
-                case 'age':
-                    $birthDate = optional($user->detail)->birth_date;
-                    return $birthDate ? \Carbon\Carbon::parse($birthDate)->age : 0;
-                case 'school':
-                    return optional($user->detail)->school ?? '';
-                case 'gpa':
-                    return optional($user->detail)->gpa ?? 0;
-                default:
-                    return $user->created_at;
-            }
-        }, SORT_REGULAR, $sortOrder === 'desc');
-        $perPage = $request->get('per_page', 10);
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-        $currentItems = $allUsers->slice(($currentPage - 1) * $perPage, $perPage)->values();
-        
-        $users = new LengthAwarePaginator(
-            $currentItems,
-            $allUsers->count(),
-            $perPage,
-            $currentPage,
-            [
-                'path' => LengthAwarePaginator::resolveCurrentPath(),
-                'query' => $request->query()
-            ]
-        );
-        
-        $totalUser = $allUsers->count();
+
+        $sortColumns = [
+            'name' => 'COALESCE(user_details.name, users.email)',
+            'email' => 'users.email',
+            'gender' => 'COALESCE(user_details.gender, \'\')',
+            'school' => 'COALESCE(user_details.school, \'\')',
+            'gpa' => "CAST(COALESCE(NULLIF(user_details.gpa, ''), '0') AS DECIMAL(10, 2))",
+            'created_at' => 'users.created_at',
+        ];
+
+        $sortBy = $request->input('sort_by', 'created_at');
+        if (!is_string($sortBy) || (!array_key_exists($sortBy, $sortColumns) && $sortBy !== 'age')) {
+            $sortBy = 'created_at';
+        }
+        $requestedSortOrder = $request->input('sort_order', 'desc');
+        $sortOrder = is_string($requestedSortOrder) ? strtolower($requestedSortOrder) : 'desc';
+        $sortOrder = in_array($sortOrder, ['asc', 'desc'], true) ? $sortOrder : 'desc';
+
+        if ($sortBy === 'age') {
+            // Age is inverse to birth date; null birth dates had age 0 in the old collection sort.
+            $query->orderByRaw('CASE WHEN user_details.birth_date IS NULL THEN 0 ELSE 1 END '.$sortOrder)
+                ->orderBy('user_details.birth_date', $sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            $query->orderByRaw(($sortColumns[$sortBy] ?? $sortColumns['created_at']).' '.$sortOrder);
+        }
+
+        $perPage = filter_var($request->input('per_page', 10), FILTER_VALIDATE_INT);
+        if ($perPage === false || $perPage < 1) {
+            $perPage = 10;
+        }
+
+        $users = $query->paginate($perPage)->withQueryString();
+        $totalUser = $users->total();
         
         return view('users', compact('users', 'totalUser'));
     }

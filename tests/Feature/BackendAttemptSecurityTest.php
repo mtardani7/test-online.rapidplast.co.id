@@ -92,6 +92,132 @@ class BackendAttemptSecurityTest extends TestCase
         $this->actingAs($user)->get(route('dashboard.users'))->assertForbidden();
     }
 
+    public function test_user_listing_search_and_filters_run_against_detail_fields(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        $alice = $this->makeListedUser('Alice Example', 'zulu@example.test', [
+            'name' => 'Alice Example', 'school' => 'Zeta School', 'gender' => 'female',
+            'birth_date' => now()->subYears(20)->toDateString(), 'gpa' => '3.50',
+        ]);
+        $bob = $this->makeListedUser('Bob Example', 'alpha@example.test', [
+            'name' => 'Bob Example', 'school' => 'Alpha School', 'gender' => 'male',
+            'birth_date' => now()->subYears(30)->toDateString(), 'gpa' => '2.50',
+        ]);
+        $carol = $this->makeListedUser('Carol Example', 'charlie@example.test', [
+            'name' => 'Carol Example', 'school' => 'Beta School', 'gender' => 'female',
+            'birth_date' => now()->subYears(20)->toDateString(), 'gpa' => '4.00',
+        ]);
+        $this->makeUserWithRole('super_admin');
+
+        $this->actingAs($admin);
+        $this->get(route('dashboard.users', ['sort_by' => ['users.email'], 'sort_order' => ['asc']]))
+            ->assertOk()->assertViewHas('users', function ($paginator) use ($alice, $bob, $carol) {
+                return $paginator->total() === 3
+                    && $paginator->getCollection()->pluck('email')->sort()->values()->all()
+                        === collect([$alice, $bob, $carol])->pluck('email')->sort()->values()->all();
+            });
+        foreach ([
+            ['search' => 'alice example', 'expected' => [$alice]],
+            ['search' => 'ALPHA@EXAMPLE.TEST', 'expected' => [$bob]],
+            ['search' => 'beta school', 'expected' => [$carol]],
+            ['gender' => 'female', 'expected' => [$alice, $carol]],
+            ['min_age' => 25, 'expected' => [$bob]],
+            ['max_age' => 20, 'expected' => [$alice, $carol]],
+            ['min_gpa' => '3.50', 'expected' => [$alice, $carol]],
+            ['gender' => 'female', 'min_age' => 20, 'max_age' => 20, 'min_gpa' => '3.50', 'expected' => [$alice, $carol]],
+        ] as $case) {
+            $expected = collect($case['expected'])->pluck('email')->sort()->values()->all();
+            unset($case['expected']);
+            $this->get(route('dashboard.users', $case))
+                ->assertOk()
+                ->assertViewHas('users', function ($paginator) use ($expected) {
+                    return $paginator instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator
+                        && $paginator->getCollection()->pluck('email')->sort()->values()->all() === $expected;
+                })
+                ->assertViewHas('totalUser', count($expected));
+        }
+    }
+
+    public function test_user_listing_supports_database_sorting_for_each_allowed_column(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        $users = [
+            'alice' => $this->makeListedUser('Alice', 'zulu@example.test', ['name' => 'Alice', 'school' => 'Zeta', 'gender' => 'female', 'birth_date' => '2006-01-01', 'gpa' => '3.50'], '2025-01-01 00:00:00'),
+            'bob' => $this->makeListedUser('Bob', 'alpha@example.test', ['name' => 'Bob', 'school' => 'Alpha', 'gender' => 'male', 'birth_date' => '1995-01-01', 'gpa' => '2.50'], '2025-01-03 00:00:00'),
+            'carol' => $this->makeListedUser('Carol', 'charlie@example.test', ['name' => 'Carol', 'school' => 'Beta', 'gender' => 'female', 'birth_date' => '2006-06-01', 'gpa' => '4.00'], '2025-01-02 00:00:00'),
+            'unknown' => $this->makeListedUser('Unknown', 'delta@example.test', [], '2025-01-04 00:00:00'),
+        ];
+        $this->actingAs($admin);
+
+        $cases = [
+            ['name', 'asc', 'zulu@example.test', 'delta@example.test'], ['name', 'desc', 'delta@example.test', 'zulu@example.test'],
+            ['email', 'asc', 'alpha@example.test', 'zulu@example.test'], ['email', 'desc', 'zulu@example.test', 'alpha@example.test'],
+            ['gender', 'asc', 'delta@example.test', 'alpha@example.test'], ['gender', 'desc', 'alpha@example.test', 'delta@example.test'],
+            ['age', 'asc', 'delta@example.test', 'alpha@example.test'], ['age', 'desc', 'alpha@example.test', 'delta@example.test'],
+            ['school', 'asc', 'delta@example.test', 'zulu@example.test'], ['school', 'desc', 'zulu@example.test', 'delta@example.test'],
+            ['gpa', 'asc', 'delta@example.test', 'charlie@example.test'], ['gpa', 'desc', 'charlie@example.test', 'delta@example.test'],
+            ['created_at', 'asc', 'zulu@example.test', 'delta@example.test'], ['unknown', 'desc', 'delta@example.test', 'zulu@example.test'],
+        ];
+        foreach ($cases as [$sort, $direction, $first, $last]) {
+            $response = $this->get(route('dashboard.users', ['sort_by' => $sort, 'sort_order' => $direction, 'per_page' => 20]));
+            $response->assertOk();
+            $this->assertSame(
+                [$first, $last],
+                [$response->viewData('users')->getCollection()->first()->email, $response->viewData('users')->getCollection()->last()->email],
+                "Unexpected endpoint ordering for {$sort} {$direction}."
+            );
+        }
+    }
+
+    public function test_user_listing_paginates_in_database_and_preserves_query_parameters(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        for ($index = 1; $index <= 15; $index++) {
+            $this->makeListedUser('Candidate '.$index, sprintf('candidate-%02d@example.test', $index), [
+                'name' => 'Candidate '.$index, 'gender' => 'female', 'school' => 'School', 'gpa' => '3.00',
+            ], sprintf('2025-01-%02d 00:00:00', $index));
+        }
+        $this->actingAs($admin);
+
+        $default = $this->get(route('dashboard.users'));
+        $default->assertOk()->assertViewHas('users', function ($paginator) {
+            return $paginator->perPage() === 10 && $paginator->count() === 10 && $paginator->total() === 15;
+        });
+        $this->get(route('dashboard.users', ['per_page' => 0]))->assertViewHas('users', fn ($paginator) => $paginator->perPage() === 10);
+
+        $queryCount = 0;
+        DB::listen(function ($query) use (&$queryCount) {
+            if (str_contains(strtolower($query->sql), 'from "users"') && str_contains(strtolower($query->sql), 'limit')) {
+                $queryCount++;
+            }
+        });
+        $response = $this->get(route('dashboard.users', ['gender' => 'female', 'per_page' => 5, 'page' => 2]));
+        $response->assertOk()->assertViewHas('users', function ($paginator) {
+            return $paginator->perPage() === 5
+                && $paginator->currentPage() === 2
+                && $paginator->total() === 15
+                && $paginator->getCollection()->pluck('email')->all() === [
+                    'candidate-10@example.test', 'candidate-09@example.test', 'candidate-08@example.test',
+                    'candidate-07@example.test', 'candidate-06@example.test',
+                ]
+                && str_contains($paginator->url(3), 'gender=female');
+        })->assertViewHas('totalUser', 15);
+        $this->assertGreaterThanOrEqual(1, $queryCount, 'The paginated data query should have a SQL limit.');
+    }
+
+    private function makeListedUser(string $label, string $email, array $detail, ?string $createdAt = null): User
+    {
+        $id = DB::table('users')->insertGetId([
+            'name' => $label, 'email' => $email, 'password' => 'hashed', 'email_verified_at' => now(),
+            'created_at' => $createdAt ?? now(), 'updated_at' => now(),
+        ]);
+        DB::table('detail_users')->insert(array_merge([
+            'user_id' => $id, 'created_at' => now(), 'updated_at' => now(),
+        ], $detail));
+
+        return User::findOrFail($id);
+    }
+
     public function test_submit_all_uses_only_server_scoped_questions_and_server_scoring(): void
     {
         [$user] = $this->makeUserWithRole(null);
@@ -714,7 +840,13 @@ class BackendAttemptSecurityTest extends TestCase
             $table->string('password'); $table->timestamp('email_verified_at')->nullable(); $table->timestamps();
         });
         Schema::create('detail_users', function (Blueprint $table) {
-            $table->id(); $table->unsignedBigInteger('user_id'); $table->string('no_id')->nullable(); $table->timestamps();
+            $table->id(); $table->unsignedBigInteger('user_id'); $table->string('name')->nullable(); $table->string('no_id')->nullable();
+            $table->date('birth_date')->nullable(); $table->string('gender')->nullable(); $table->string('religion')->nullable();
+            $table->string('citizenship')->nullable(); $table->string('fathers_name')->nullable(); $table->string('fathers_occupation')->nullable();
+            $table->string('mothers_name')->nullable(); $table->string('mothers_occupation')->nullable(); $table->string('level')->nullable();
+            $table->string('school')->nullable(); $table->string('gpa')->nullable(); $table->string('phone_number')->nullable();
+            $table->text('province')->nullable(); $table->text('city')->nullable(); $table->text('regency')->nullable();
+            $table->text('district')->nullable(); $table->text('address')->nullable(); $table->string('image')->nullable(); $table->timestamps();
         });
         Schema::create('roles', function (Blueprint $table) {
             $table->id(); $table->string('name'); $table->string('guard_name')->default('web'); $table->timestamps();
