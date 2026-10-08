@@ -17,10 +17,8 @@ class AttemptController extends Controller
     {
         $query = Attempt::with([
             'user',
-            'tests',
             'typeTests.subAnswers.subTest',
             'typeTests.typeTest',
-            'answers'
         ]);
         if ($request->has('user_id') && $request->user_id) {
             $query->where('user_id', $request->user_id);
@@ -49,10 +47,27 @@ class AttemptController extends Controller
         if ($request->has('score_max') && $request->score_max) {
             $query->where('score', '<=', $request->score_max);
         }
+        $allowedSorts = ['created_at', 'score', 'total_correct', 'total_question', 'id'];
         $sortBy = $request->get('sort_by', 'created_at');
-        $sortOrder = $request->get('sort_order', 'desc');
+        if (!is_string($sortBy) || !in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'created_at';
+        }
+
+        $sortOrderInput = $request->get('sort_order', 'desc');
+        $sortOrder = is_string($sortOrderInput) ? strtolower($sortOrderInput) : 'desc';
+        if (!in_array($sortOrder, ['asc', 'desc'], true)) {
+            $sortOrder = 'desc';
+        }
+
         $query->orderBy($sortBy, $sortOrder);
-        $perPage = $request->get('per_page', 10);
+        $perPageInput = $request->get('per_page', 10);
+        $perPage = is_int($perPageInput)
+            ? $perPageInput
+            : (is_string($perPageInput) && ctype_digit($perPageInput) ? (int) $perPageInput : 10);
+        if (!in_array($perPage, [5, 10, 20, 50], true)) {
+            $perPage = 10;
+        }
+
         $attempts = $query->paginate($perPage)->withQueryString();
         $users = User::orderBy('name')->get(['id', 'name', 'email']);
         $tests = Tests::orderBy('name')->get(['id', 'name']);

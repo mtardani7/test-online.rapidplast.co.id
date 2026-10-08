@@ -591,6 +591,66 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertSame(40, (int) $largeView->getData()['totalDuration']);
     }
 
+    public function test_admin_attempt_index_whitelists_sort_and_page_size_and_keeps_view_relations(): void
+    {
+        [$admin] = $this->makeUserWithRole('admin');
+        [$test, $typeTest, $subTest] = $this->makeHierarchy('attempt-index');
+        $attemptIds = [];
+
+        for ($index = 1; $index <= 12; $index++) {
+            $attemptIds[$index] = DB::table('attempts')->insertGetId([
+                'user_id' => $admin->id, 'test_id' => $test->id,
+                'total_correct' => $index, 'total_question' => 20, 'score' => 100 - $index,
+                'created_at' => now()->addMinutes($index), 'updated_at' => now()->addMinutes($index),
+            ]);
+        }
+
+        $typeAttemptId = DB::table('attempt_type_tests')->insertGetId([
+            'attempt_id' => $attemptIds[12], 'type_test_id' => $typeTest->id,
+            'correct' => 5, 'total' => 10, 'score' => 50, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('attempt_sub_tests')->insert([
+            'attempt_type_test_id' => $typeAttemptId, 'sub_test_id' => $subTest->id,
+            'score' => 50, 'correct_count' => 5, 'wrong_count' => 5,
+            'is_finished' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+        $defaultResponse = $this->get(route('admin.attempts.index'));
+        $defaultResponse->assertOk()->assertViewHas('attempts', function ($paginator) use ($attemptIds) {
+            $first = $paginator->getCollection()->first();
+            $typeAttempt = $first->typeTests->first();
+
+            return $paginator->perPage() === 10
+                && $first->id === $attemptIds[12]
+                && $first->relationLoaded('user')
+                && !$first->relationLoaded('tests')
+                && !$first->relationLoaded('answers')
+                && $typeAttempt->relationLoaded('typeTest')
+                && $typeAttempt->relationLoaded('subAnswers')
+                && $typeAttempt->subAnswers->first()->relationLoaded('subTest');
+        });
+
+        $sortedResponse = $this->get(route('admin.attempts.index', [
+            'sort_by' => 'score', 'sort_order' => 'asc', 'per_page' => 20,
+        ]));
+        $sortedResponse->assertOk()->assertViewHas('attempts', function ($paginator) use ($attemptIds) {
+            return $paginator->perPage() === 20
+                && $paginator->getCollection()->first()->id === $attemptIds[12];
+        });
+
+        $invalidResponse = $this->get(route('admin.attempts.index', [
+            'sort_by' => 'does_not_exist', 'sort_order' => 'sideways', 'per_page' => 1000000,
+        ]));
+        $invalidResponse->assertOk()->assertViewHas('attempts', function ($paginator) use ($attemptIds) {
+            return $paginator->perPage() === 10
+                && $paginator->getCollection()->first()->id === $attemptIds[12]
+                && str_contains($paginator->url(2), 'sort_by=does_not_exist')
+                && str_contains($paginator->url(2), 'sort_order=sideways')
+                && str_contains($paginator->url(2), 'per_page=1000000');
+        });
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table) {
