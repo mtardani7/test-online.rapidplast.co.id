@@ -651,6 +651,62 @@ class BackendAttemptSecurityTest extends TestCase
         });
     }
 
+    public function test_final_statistics_are_recalculated_by_scoring_service_from_subtest_counts(): void
+    {
+        [$user] = $this->makeUserWithRole(null);
+        [$test, $typeA, $subA] = $this->makeHierarchy('final-statistics');
+        $subBId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeA->id, 'name' => 'Second subtest', 'slug' => 'final-statistics-sub-b',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $typeBId = DB::table('type_tests')->insertGetId([
+            'tests_id' => $test->id, 'name' => 'Second type', 'slug' => 'final-statistics-type-b',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $subCId = DB::table('sub_tests')->insertGetId([
+            'type_tests_id' => $typeBId, 'name' => 'Third subtest', 'slug' => 'final-statistics-sub-c',
+            'duration' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $attempt = Attempt::create([
+            'user_id' => $user->id, 'test_id' => $test->id,
+            'total_correct' => 999, 'total_question' => 999, 'score' => 999,
+        ]);
+        $typeAttemptA = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeA->id,
+            'correct' => 999, 'total' => 999, 'score' => 999,
+        ]);
+        $typeAttemptB = AttemptTypeTest::create([
+            'attempt_id' => $attempt->id, 'type_test_id' => $typeBId,
+            'correct' => 4, 'total' => 5, 'score' => 4,
+        ]);
+        $subAttemptA = \App\Models\AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptA->id, 'sub_test_id' => $subA->id,
+            'correct_count' => 3, 'wrong_count' => 2, 'score' => 3,
+        ]);
+        \App\Models\AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptA->id, 'sub_test_id' => $subBId,
+            'correct_count' => 2, 'wrong_count' => 1, 'score' => 2,
+        ]);
+        \App\Models\AttemptSubTest::create([
+            'attempt_type_test_id' => $typeAttemptB->id, 'sub_test_id' => $subCId,
+            'correct_count' => 4, 'wrong_count' => 1, 'score' => 4,
+        ]);
+
+        $controller = app(\App\Http\Controllers\UserTestController::class);
+        $statisticsMethod = new \ReflectionMethod($controller, 'updateFinalStatistics');
+        $statisticsMethod->invoke($controller, $attempt, $typeAttemptA, $subAttemptA);
+
+        $this->assertSame(3, (int) $subAttemptA->fresh()->correct_count);
+        $this->assertSame(2, (int) $subAttemptA->fresh()->wrong_count);
+        $this->assertSame(5, (int) $typeAttemptA->fresh()->correct);
+        $this->assertSame(8, (int) $typeAttemptA->fresh()->total);
+        $this->assertSame(5, (int) $typeAttemptA->fresh()->score);
+        $this->assertSame(9, (int) $attempt->fresh()->total_correct);
+        $this->assertSame(13, (int) $attempt->fresh()->total_question);
+        $this->assertSame(9, (int) $attempt->fresh()->score);
+    }
+
     private function createTables(): void
     {
         Schema::create('users', function (Blueprint $table) {

@@ -741,23 +741,9 @@ class UserTestController extends Controller
     private function updateFinalStatistics($attempt, $typeAttempt, $subAttempt)
     {
         $scoreService = new \App\Services\ScoringService();
-        
-        $typeAttempt->update([
-            'correct' => AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)->sum('correct_count'),
-            'total' => AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)
-                ->sum('correct_count') +
-                AttemptSubTest::where('attempt_type_test_id', $typeAttempt->id)
-                ->sum('wrong_count'),
-            'score' => $scoreService->calculateTypeTestScore($typeAttempt),
-            'updated_at' => now(),
-        ]);
 
-        $attempt->update([
-            'total_correct' => AttemptTypeTest::where('attempt_id', $attempt->id)->sum('correct'),
-            'total_question' => AttemptTypeTest::where('attempt_id', $attempt->id)->sum('total'),
-            'score' => $scoreService->calculateAttemptScore($attempt),
-            'updated_at' => now(),
-        ]);
+        $scoreService->calculateTypeTestScore($typeAttempt);
+        $scoreService->calculateAttemptScore($attempt);
     }
     
     public function completeRange(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
