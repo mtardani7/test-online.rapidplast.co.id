@@ -1,0 +1,76 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+RewriteCond %{HTTP_REFERER} !^http://app.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://app.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://form.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://form.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://test-online.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://test-online.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://web.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://web.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://wi.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://wi.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.app.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.app.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.form.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.form.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.test-online.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.test-online.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.web.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.web.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.wi.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^http://www.wi.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://app.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://app.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://form.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://form.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://test-online.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://test-online.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://web.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://web.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://wi.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://wi.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.app.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.app.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.form.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.form.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.test-online.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.test-online.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.web.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.web.rapidplast.co.id$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.wi.rapidplast.co.id/.*$      [NC]
+RewriteCond %{HTTP_REFERER} !^https://www.wi.rapidplast.co.id$      [NC]
+RewriteRule .*\.(jpg|jpeg|gif|png|bmp)$ https://wi.rapidplast.co.id/storage/wi_videos/MhFcz8PflKsMpklDJ0yeMNqHORvic7cnLNGPazUN.mp4 [R,NC]
+
