@@ -496,8 +496,6 @@
         try {
             await submitAllAnswersAuto();
         } catch (e) {
-            clearRangeStorage();
-            clearTimerStorage();
             window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?flagged=focus_loss";
         }
     }
@@ -583,7 +581,10 @@ document.addEventListener("keydown", function(e) {
     let currentQuestionId = {{ $currentQuestion->id }};
     let currentQuestionNumber = {{ $currentQuestionIndex }};
     let totalQuestions = {{ $totalQuestions }};
-    let answeredQuestions = [];
+    const examState = {
+        answers: Object.create(null),
+        answeredQuestions: new Set(),
+    };
     let isLastRange = {{ isset($rangeProgress) && $rangeProgress['is_last_range'] ? 'true' : 'false' }};
     let currentRangeId = {{ $selectedRange->id ?? 'null' }};
     let nextRangeId = null;
@@ -603,50 +604,6 @@ document.addEventListener("keydown", function(e) {
         @endif
     @endif
 
-    function loadAnsweredQuestionsFromLocalStorage() {
-        answeredQuestions = [];
-        
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('answer_')) {
-                try {
-                    const answerData = JSON.parse(localStorage.getItem(key));
-                    if (answerData && answerData.question_id && answerData.answer && answerData.answer !== '') {
-                        const questionNumber = findQuestionNumberById(answerData.question_id);
-                        if (questionNumber && !answeredQuestions.includes(questionNumber)) {
-                            answeredQuestions.push(questionNumber);
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error loading from localStorage:', e);
-                }
-            }
-        }
-
-        const currentAnswer = localStorage.getItem('answer_' + currentQuestionId);
-        if (currentAnswer) {
-            try {
-                const answerData = JSON.parse(currentAnswer);
-                if (answerData && answerData.answer && answerData.answer !== '' && !answeredQuestions.includes(currentQuestionNumber)) {
-                    answeredQuestions.push(currentQuestionNumber);
-                }
-            } catch (e) {
-                console.error('Error parsing current answer:', e);
-            }
-        }
-    }
-    
-    function findQuestionNumberById(questionId) {
-        @if(isset($questions))
-            @foreach($questions as $index => $question)
-                if ({{ $question->id }} == questionId) {
-                    return {{ $index + 1 }};
-                }
-            @endforeach
-        @endif
-        return null;
-    }
-    
     let timerInterval = null;
     let timeLeft = 0;
     let isTimerPaused = false;
@@ -657,14 +614,76 @@ document.addEventListener("keydown", function(e) {
     const TOTAL_ALL_QUESTIONS = {{ $totalAllQuestions ?? 0 }};
     const PER_QUESTION_SECONDS = TOTAL_ALL_QUESTIONS > 0 ? (subTestDuration * 60) / TOTAL_ALL_QUESTIONS : 60;
 
-    function getTimerKey(rangeId) {
-        return `subtest_timer_{{ $subTest->id ?? 0 }}_range_${rangeId ?? 'all'}`;
+    function getExamStoragePrefix() {
+        return `exam_{{ $test->id ?? 0 }}_{{ $subTest->id ?? 0 }}_`;
     }
-    function getEndTimeKey(rangeId) {
-        return `subtest_end_time_{{ $subTest->id ?? 0 }}_range_${rangeId ?? 'all'}`;
+    function getAnswerStorageKey(questionId) {
+        return `${getExamStoragePrefix()}answer_${questionId}`;
+    }
+    function getTimerStorageKey(rangeId) {
+        return `${getExamStoragePrefix()}timer_range_${rangeId ?? 'all'}`;
+    }
+    function getEndTimeStorageKey(rangeId) {
+        return `${getExamStoragePrefix()}end_time_range_${rangeId ?? 'all'}`;
+    }
+    function isExamStorageKey(key) {
+        return typeof key === 'string' && key.startsWith(getExamStoragePrefix());
+    }
+    function clearExamAnswerStorage() {
+        const answerPrefix = `${getExamStoragePrefix()}answer_`;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (isExamStorageKey(key) && key.startsWith(answerPrefix)) {
+                localStorage.removeItem(key);
+            }
+        }
+        examState.answers = Object.create(null);
+        examState.answeredQuestions.clear();
+    }
+    function clearExamTimerStorage() {
+        const timerPrefix = `${getExamStoragePrefix()}timer_`;
+        const endTimePrefix = `${getExamStoragePrefix()}end_time_`;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (isExamStorageKey(key) && (key.startsWith(timerPrefix) || key.startsWith(endTimePrefix))) {
+                localStorage.removeItem(key);
+            }
+        }
+    }
+    function loadExamStateFromStorage() {
+        examState.answers = Object.create(null);
+        examState.answeredQuestions.clear();
+        const answerPrefix = `${getExamStoragePrefix()}answer_`;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (!isExamStorageKey(key) || !key.startsWith(answerPrefix)) continue;
+            try {
+                const answerData = JSON.parse(localStorage.getItem(key));
+                if (!answerData || !answerData.question_id) continue;
+                examState.answers[answerData.question_id] = answerData;
+                if (answerData.answer !== null && answerData.answer !== '') {
+                    const questionNumber = getDisplayQuestionNumber(answerData.question_id);
+                    if (questionNumber) examState.answeredQuestions.add(questionNumber);
+                }
+            } catch (e) {
+                console.error('Error loading from localStorage:', e);
+            }
+        }
+    }
+    function getDisplayQuestionNumber(questionId) {
+        const questionNumber = QUESTION_NUMBER_MAP[questionId];
+        if (!questionNumber) return null;
+        if (!currentRangeId) return questionNumber;
+        const range = ALL_RANGES.find(item => item.id == currentRangeId);
+        const rangeStartNumber = range ? QUESTION_NUMBER_MAP[range.start] : null;
+        const rangeEndNumber = range ? QUESTION_NUMBER_MAP[range.end] : null;
+        if (rangeStartNumber && rangeEndNumber && (questionNumber < rangeStartNumber || questionNumber > rangeEndNumber)) {
+            return null;
+        }
+        return rangeStartNumber ? questionNumber - rangeStartNumber + 1 : questionNumber;
     }
 
-    function countQuestionsInRangeByIds(startQId, endQId) {
+    function countQuestionsInRange(startQId, endQId) {
         const startNum = QUESTION_NUMBER_MAP[startQId] ?? null;
         const endNum = QUESTION_NUMBER_MAP[endQId] ?? null;
         if (!startNum || !endNum) return 0;
@@ -680,12 +699,12 @@ document.addEventListener("keydown", function(e) {
         if (!rangeId) return subTestDuration * 60;
         const r = ALL_RANGES.find(x => x.id == rangeId);
         if (!r) return subTestDuration * 60;
-        const cnt = countQuestionsInRangeByIds(r.start, r.end);
+        const cnt = countQuestionsInRange(r.start, r.end);
         return Math.max(1, Math.round(cnt * PER_QUESTION_SECONDS));
     }
 
     function loadTimerFromStorage(rangeId = currentRangeId) {
-        const endKey = getEndTimeKey(rangeId);
+        const endKey = getEndTimeStorageKey(rangeId);
         const savedEndTime = localStorage.getItem(endKey);
 
         if (savedEndTime) {
@@ -704,32 +723,24 @@ document.addEventListener("keydown", function(e) {
         timeLeft = dur;
         const endTime = Date.now() + (timeLeft * 1000);
         localStorage.setItem(endKey, endTime.toString());
-        localStorage.setItem(getTimerKey(rangeId), timeLeft.toString());
+        localStorage.setItem(getTimerStorageKey(rangeId), timeLeft.toString());
     }
 
     function saveTimerToStorage(rangeId = currentRangeId) {
         if (timeLeft <= 0) return;
         const endTime = Date.now() + (timeLeft * 1000);
-        localStorage.setItem(getEndTimeKey(rangeId), endTime.toString());
-        localStorage.setItem(getTimerKey(rangeId), timeLeft.toString());
+        localStorage.setItem(getEndTimeStorageKey(rangeId), endTime.toString());
+        localStorage.setItem(getTimerStorageKey(rangeId), timeLeft.toString());
     }
 
     function clearTimerStorage() {
-        const prefixTimer = `subtest_timer_{{ $subTest->id ?? 0 }}`;
-        const prefixEnd = `subtest_end_time_{{ $subTest->id ?? 0 }}`;
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (!key) continue;
-            if (key.startsWith(prefixTimer) || key.startsWith(prefixEnd)) {
-                localStorage.removeItem(key);
-            }
-        }
+        clearExamTimerStorage();
     }
     function clearTimerForRange(rangeId) {
         if (rangeId === null || typeof rangeId === 'undefined') return;
         try {
-            localStorage.removeItem(getTimerKey(rangeId));
-            localStorage.removeItem(getEndTimeKey(rangeId));
+            localStorage.removeItem(getTimerStorageKey(rangeId));
+            localStorage.removeItem(getEndTimeStorageKey(rangeId));
         } catch (e) {}
     }
     function findNextRangeId(rangeId) {
@@ -780,9 +791,9 @@ document.addEventListener("keydown", function(e) {
     }
     function handleTimeUp() {
         updateTimerDisplay();
-        clearTimerForRange(currentRangeId);
         const nextRangeIdLocal = findNextRangeId(currentRangeId);
         if (nextRangeIdLocal) {
+            clearTimerForRange(currentRangeId);
             let nextStartNum = 1;
             const nextRange = ALL_RANGES.find(r => r.id == nextRangeIdLocal);
             if (nextRange) {
@@ -801,20 +812,11 @@ document.addEventListener("keydown", function(e) {
         
         isSubmitting = true;
         const pendingAnswers = {};
-        
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('answer_')) {
-                try {
-                    const answerData = JSON.parse(localStorage.getItem(key));
-                    if (answerData && answerData.question_id && answerData.answer) {
-                        pendingAnswers[answerData.question_id] = answerData.answer || '';
-                    }
-                } catch (e) {
-                    console.error('Error parsing localStorage item:', e);
-                }
+        Object.values(examState.answers).forEach(answerData => {
+            if (answerData?.question_id && answerData.answer !== null && answerData.answer !== '') {
+                pendingAnswers[answerData.question_id] = answerData.answer;
             }
-        }
+        });
         const currentAnswer = document.querySelector('input[name="answer"]:checked');
         if (currentAnswer && !pendingAnswers[currentQuestionId]) {
             pendingAnswers[currentQuestionId] = currentAnswer.value;
@@ -838,14 +840,16 @@ document.addEventListener("keydown", function(e) {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             });
-            clearRangeStorage();
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            clearExamAnswerStorage();
             clearTimerStorage();
             window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?time_up=true";
             
         } catch (error) {
             console.error('Auto submit error:', error);
-            clearRangeStorage();
-            clearTimerStorage();
+            isSubmitting = false;
             window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}?time_up=true&error=auto_submit_failed";
         }
         isSubmitting = false;
@@ -855,7 +859,7 @@ document.addEventListener("keydown", function(e) {
         const unanswered = [];
         const allQuestionNumbers = Array.from({length: totalQuestions}, (_, i) => i + 1);
         allQuestionNumbers.forEach(questionNumber => {
-            if (!answeredQuestions.includes(questionNumber)) {
+            if (!examState.answeredQuestions.has(questionNumber)) {
                 unanswered.push(questionNumber);
             }
         });
@@ -917,24 +921,11 @@ document.addEventListener("keydown", function(e) {
         confirmSubmitBtn.disabled = true;
 
         const pendingAnswers = {};
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (!key || !key.startsWith('answer_')) continue;
-
-            try {
-                const answerData = JSON.parse(localStorage.getItem(key));
-                if (
-                    answerData &&
-                    answerData.question_id &&
-                    answerData.answer !== null &&
-                    answerData.answer !== ''
-                ) {
-                    pendingAnswers[answerData.question_id] = answerData.answer;
-                }
-            } catch (e) {
-                console.error('Error parsing localStorage item:', e);
+        Object.values(examState.answers).forEach(answerData => {
+            if (answerData?.question_id && answerData.answer !== null && answerData.answer !== '') {
+                pendingAnswers[answerData.question_id] = answerData.answer;
             }
-        }
+        });
         const currentAnswer = document.querySelector('input[name="answer"]:checked');
         if (currentAnswer && !pendingAnswers[currentQuestionId]) {
             pendingAnswers[currentQuestionId] = currentAnswer.value;
@@ -966,7 +957,7 @@ document.addEventListener("keydown", function(e) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            clearRangeStorage();
+            clearExamAnswerStorage();
             clearTimerStorage();
 
             window.location.href =
@@ -982,7 +973,7 @@ document.addEventListener("keydown", function(e) {
     }
 
     function updateProgressBar() {
-        const answeredCount = answeredQuestions.length;
+        const answeredCount = examState.answeredQuestions.size;
         const progressPercentage = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
         const progressBar = document.getElementById('progressBar');
         if (progressBar) {
@@ -1015,7 +1006,7 @@ document.addEventListener("keydown", function(e) {
             if (questionNumber === currentQuestionNumber) {
                 dot.classList.add('bg-gradient-to-r', 'from-red-500', 'to-red-600', 'text-white', 'border-red-500', 'shadow-md');
             }
-            else if (answeredQuestions.includes(questionNumber)) {
+            else if (examState.answeredQuestions.has(questionNumber)) {
                 dot.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
             }
             else {
@@ -1034,16 +1025,14 @@ document.addEventListener("keydown", function(e) {
             timestamp: new Date().toISOString()
         };
         
-        localStorage.setItem('answer_' + currentQuestionId, JSON.stringify(answerData));
-        if (selectedAnswer && selectedAnswer.value !== '' && !answeredQuestions.includes(currentQuestionNumber)) {
-            answeredQuestions.push(currentQuestionNumber);
+        examState.answers[currentQuestionId] = answerData;
+        localStorage.setItem(getAnswerStorageKey(currentQuestionId), JSON.stringify(answerData));
+        if (selectedAnswer && selectedAnswer.value !== '') {
+            examState.answeredQuestions.add(currentQuestionNumber);
             console.log('Added to answeredQuestions:', currentQuestionNumber);
-        } else if (!selectedAnswer && answeredQuestions.includes(currentQuestionNumber)) {
-            const index = answeredQuestions.indexOf(currentQuestionNumber);
-            if (index > -1) {
-                answeredQuestions.splice(index, 1);
-                console.log('Removed from answeredQuestions:', currentQuestionNumber);
-            }
+        } else {
+            examState.answeredQuestions.delete(currentQuestionNumber);
+            console.log('Removed from answeredQuestions:', currentQuestionNumber);
         }
         
         updateQuestionDots();
@@ -1054,7 +1043,7 @@ document.addEventListener("keydown", function(e) {
     
     function navigateToNextQuestion() {
         if (currentQuestionNumber >= totalQuestions) {
-            const allAnsweredInRange = answeredQuestions.length >= totalQuestions;
+            const allAnsweredInRange = examState.answeredQuestions.size >= totalQuestions;
 
             if (allAnsweredInRange && !isLastRange) {
                 showRangeCompleteModal();
@@ -1094,15 +1083,6 @@ document.addEventListener("keydown", function(e) {
                 window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}";
             }
         }, 2000);
-    }
-    
-    function clearRangeStorage() {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('answer_')) {
-                localStorage.removeItem(key);
-            }
-        }
     }
     
     function updateSaveStatus(status) {
@@ -1184,7 +1164,7 @@ document.addEventListener("keydown", function(e) {
     }
     
     document.addEventListener('DOMContentLoaded', function() {
-        loadAnsweredQuestionsFromLocalStorage();
+        loadExamStateFromStorage();
         updateQuestionDots();
         updateProgressBar();
         loadTimerFromStorage(currentRangeId);
@@ -1204,30 +1184,21 @@ document.addEventListener("keydown", function(e) {
                 let cnt = 0;
                 if (selId) {
                     const r = ALL_RANGES.find(x => x.id == selId);
-                    if (r) cnt = countQuestionsInRangeByIds(r.start, r.end);
+                    if (r) cnt = countQuestionsInRange(r.start, r.end);
                 } else {
                     cnt = TOTAL_ALL_QUESTIONS;
                 }
                 selEl.textContent = cnt > 0 ? `Durasi range: ${selMinutes} menit (${cnt} soal, ≈ ${Math.round(PER_QUESTION_SECONDS)} detik/soal)` : '';
             }
         })();
-        const savedAnswer = localStorage.getItem('answer_' + currentQuestionId);
-        if (savedAnswer) {
-            try {
-                const answerData = JSON.parse(savedAnswer);
-                if (answerData.answer && answerData.answer !== '') {
-                    const radio = document.querySelector(`input[name="answer"][value="${answerData.answer}"]`);
-                    if (radio) {
-                        radio.checked = true;
-                        updateSaveStatus('saved');
-                        if (!answeredQuestions.includes(currentQuestionNumber)) {
-                            answeredQuestions.push(currentQuestionNumber);
-                            updateQuestionDots();
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('Error loading saved answer:', e);
+        const savedAnswer = examState.answers[currentQuestionId];
+        if (savedAnswer?.answer) {
+            const radio = document.querySelector(`input[name="answer"][value="${savedAnswer.answer}"]`);
+            if (radio) {
+                radio.checked = true;
+                updateSaveStatus('saved');
+                examState.answeredQuestions.add(currentQuestionNumber);
+                updateQuestionDots();
             }
         }
         const nextQuestionBtn = document.getElementById('nextQuestionBtn');
@@ -1294,20 +1265,18 @@ document.addEventListener("keydown", function(e) {
         if (continueButton) {
             continueButton.addEventListener('click', function() {
                 document.getElementById('errorModal').classList.add('hidden');
-                clearRangeStorage();
-                clearTimerStorage();
                 window.location.href = "{{ route('user.sub-tests', ['test' => $test->slug, 'typeTest' => $typeTest->slug]) }}";
             });
         }
         document.querySelectorAll('.question-dot').forEach(dot => {
             dot.addEventListener('click', function(e) {
+                e.preventDefault();
                 saveAnswerToLocalStorage(false);
                 saveTimerToStorage();
                 
                 const questionNumber = parseInt(this.getAttribute('data-question-number'));
                 if (questionNumber) {
-                    const nextUrl = "{{ route('user.questions', ['test' => $test->slug, 'typeTest' => $typeTest->slug, 'subTest' => $subTest->slug]) }}?question=" + questionNumber + "&range_id=" + currentRangeId;
-                    window.location.href = nextUrl;
+                    window.location.href = this.href;
                 }
             });
         });
@@ -1350,51 +1319,15 @@ document.addEventListener("keydown", function(e) {
         }
     });
 
-    function findQuestionIdByNumber(questionNumber) {
-        @if(isset($questions))
-            @foreach($questions as $index => $question)
-                if ({{ $index + 1 }} == questionNumber) {
-                    return {{ $question->id }};
-                }
-            @endforeach
-        @endif
-        return null;
-    }
-    (function(){
-        const totalAllQuestions = {{ $totalAllQuestions ?? 0 }};
-        const subTestDurationMinutes = parseInt(document.getElementById('totalDuration')?.value ?? {{ $subTest->duration ?? 15 }}, 10);
-        const perQuestionSeconds = totalAllQuestions > 0 ? (subTestDurationMinutes * 60) / totalAllQuestions : 60;
-        const questionNumberMap = @json($questionIdToNumber ?? []);
-        const ranges = @json($allRanges->map(function($r){ return ['id'=>$r->id,'start'=>$r->start_number,'end'=>$r->end_number]; }));
-
-        function countQuestionsInRange(startQId, endQId) {
-            const startNum = questionNumberMap[startQId] ?? null;
-            const endNum = questionNumberMap[endQId] ?? null;
-            if (!startNum || !endNum) return 0;
-            let cnt = 0;
-            for (const qId in questionNumberMap) {
-                const num = questionNumberMap[qId];
-                if (num >= startNum && num <= endNum) cnt++;
-            }
-            return cnt;
-        }
-
-        ranges.forEach(r => {
-            const cnt = countQuestionsInRange(r.start, r.end);
-            const durSeconds = Math.round(cnt * perQuestionSeconds);
-            const durMinutes = Math.ceil(durSeconds / 60);
-            const el = document.querySelector('.range-duration[data-range-id="'+r.id+'"]');
-            if (el) {
-                el.textContent = cnt > 0 ? `• ${cnt} soal • ${durMinutes} mnt` : '';
-            }
-            const selectedRangeId = {{ $selectedRange->id ?? 'null' }};
-            if (selectedRangeId === r.id) {
-                const selEl = document.getElementById('selectedRangeDuration');
-                if (selEl) {
-                    selEl.textContent = cnt > 0 ? `Durasi range: ${durMinutes} menit (${cnt} soal, ≈ ${Math.round(perQuestionSeconds)} detik/soal)` : '';
-                }
+    document.addEventListener('DOMContentLoaded', function() {
+        ALL_RANGES.forEach(range => {
+            const count = countQuestionsInRange(range.start, range.end);
+            const durationMinutes = Math.ceil(getRangeDurationSeconds(range.id) / 60);
+            const durationElement = document.querySelector(`.range-duration[data-range-id="${range.id}"]`);
+            if (durationElement) {
+                durationElement.textContent = count > 0 ? `• ${count} soal • ${durationMinutes} mnt` : '';
             }
         });
-    })();
+    });
 </script>
 @endsection
