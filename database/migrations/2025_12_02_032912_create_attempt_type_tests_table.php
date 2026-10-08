@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('attempt_id')->constrained('attempts')->onDelete('cascade');
-            $table->foreignId('sub_test_id')->constrained('sub_tests')->onDelete('cascade');
+            $table->foreignId('type_test_id')->constrained('type_tests')->onDelete('cascade');
 
             $table->integer('correct')->default(0);
             $table->integer('total')->default(0);

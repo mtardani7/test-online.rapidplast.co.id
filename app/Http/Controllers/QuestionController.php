@@ -12,8 +12,21 @@ use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class QuestionController extends Controller
 {
+    private function assertHierarchy(Tests $test, TypeTests $typeTest, SubTests $subTest): void
+    {
+        abort_unless((int) $typeTest->tests_id === (int) $test->id, 404);
+        abort_unless((int) $subTest->type_tests_id === (int) $typeTest->id, 404);
+    }
+
+    private function questionInSubTest(SubTests $subTest, Questions $question): Questions
+    {
+        return $subTest->questions()->whereKey($question->getKey())->firstOrFail();
+    }
+
     public function index(Tests $test, TypeTests $typeTest, SubTests $subTest, Request $request)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
         $query = $subTest->questions()->with('choices');
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
@@ -45,7 +58,10 @@ class QuestionController extends Controller
         $questions = $query->paginate(10)->withQueryString();
         $totalQuestions = $subTest->questions()->count();
         $questionsWithImage = $subTest->questions()->whereNotNull('image')->count();
-        $totalChoices = QuestionChoices::whereIn('questions_id', $subTest->questions()->pluck('id'))->count();
+        $totalChoices = QuestionChoices::whereIn(
+            QuestionChoices::questionForeignKey(),
+            $subTest->questions()->pluck('id')
+        )->count();
         $avgChoices = $totalQuestions > 0 ? round($totalChoices / $totalQuestions, 1) : 0;
         
         return view('admin.question.index', compact(
@@ -61,6 +77,8 @@ class QuestionController extends Controller
 
     public function store(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+
         $request->validate([
             'question_text' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg',
@@ -127,6 +145,9 @@ class QuestionController extends Controller
 
     public function update(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest, Questions $question) 
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $question = $this->questionInSubTest($subTest, $question);
+
         $validated = $request->validate([
             'question_text' => [
                 'required',
@@ -225,6 +246,9 @@ class QuestionController extends Controller
 
     public function destroy(Tests $test, TypeTests $typeTest, SubTests $subTest, Questions $question)
     {
+        $this->assertHierarchy($test, $typeTest, $subTest);
+        $question = $this->questionInSubTest($subTest, $question);
+
         try {
             if ($question->image) {
                 $publicId = $this->extractCloudinaryPublicId($question->image);

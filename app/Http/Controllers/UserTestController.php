@@ -8,8 +8,10 @@ use App\Models\TypeTests;
 use App\Models\SubTests;
 use App\Models\Questions;
 use App\Models\AttemptAnswer;
+use App\Models\QuestionChoices;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use App\Models\AttemptTypeTest;
 use App\Models\AttemptSubTest;
 use App\Models\SubtestInstructionRange;
@@ -25,6 +27,58 @@ class UserTestController extends Controller
     private $rangeService;
     private $shuffleService;
     private $questionNavigationService;
+
+    private function assertTestHierarchy(Tests $test, TypeTests $typeTest, SubTests $subTest): void
+    {
+        abort_unless((int) $typeTest->tests_id === (int) $test->id, 404);
+        abort_unless((int) $subTest->type_tests_id === (int) $typeTest->id, 404);
+    }
+
+    /**
+     * Validate the existing browser payload shape: answers[question_id] = option_id.
+     */
+    private function validatedAnswers(Request $request, SubTests $subTest, $questions): array
+    {
+        $validated = $request->validate([
+            'answers' => ['sometimes', 'array', 'max:' . $questions->count()],
+            'answers.*' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $answers = $validated['answers'] ?? [];
+        $questionsById = $questions->keyBy('id');
+
+        foreach (array_keys($answers) as $questionId) {
+            $parsedQuestionId = filter_var($questionId, FILTER_VALIDATE_INT);
+            if ($parsedQuestionId === false || !$questionsById->has((int) $parsedQuestionId)) {
+                throw ValidationException::withMessages([
+                    'answers' => 'Ada pertanyaan yang tidak termasuk dalam subtest ini.',
+                ]);
+            }
+        }
+
+        $submittedOptionIds = collect($answers)->filter(fn ($answer) => $answer !== null)->unique()->values();
+        if ($submittedOptionIds->isNotEmpty()) {
+            $questionForeignKey = QuestionChoices::questionForeignKey();
+            $optionsById = QuestionChoices::query()
+                ->whereIn('id', $submittedOptionIds)
+                ->whereIn($questionForeignKey, array_keys($answers))
+                ->pluck($questionForeignKey, 'id');
+
+            foreach ($answers as $questionId => $optionId) {
+                if ($optionId === null) {
+                    continue;
+                }
+
+                if ((int) ($optionsById->get((int) $optionId) ?? 0) !== (int) $questionId) {
+                    throw ValidationException::withMessages([
+                        "answers.{$questionId}" => 'Pilihan jawaban tidak dimiliki oleh pertanyaan tersebut.',
+                    ]);
+                }
+            }
+        }
+
+        return $answers;
+    }
 
     public function __construct(
         AttemptService $attemptService,
@@ -161,6 +215,7 @@ class UserTestController extends Controller
         if ($tokenCheck) {
             return $tokenCheck;
         }
+        abort_unless((int) $typeTest->tests_id === (int) $test->id, 404);
         $attempt = $this->attemptService->getOrCreateAttempt($test);
         $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
 
@@ -242,6 +297,7 @@ class UserTestController extends Controller
         if ($tokenCheck) {
             return $tokenCheck;
         }
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
 
         $user = Auth::user();
 
@@ -460,19 +516,24 @@ class UserTestController extends Controller
         if ($tokenCheck) {
             return $tokenCheck;
         }
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
 
-        $request->validate([
-            'answers' => 'nullable|array',
-        ]);
+        $questions = $subTest->questions()
+            ->select('id', 'correct_option_id')
+            ->get();
+        $answersInput = $this->validatedAnswers($request, $subTest, $questions);
 
         $user = Auth::user();
 
-        return DB::transaction(function () use ($request, $test, $typeTest, $subTest, $user) {
+        return DB::transaction(function () use ($test, $typeTest, $subTest, $user, $questions, $answersInput) {
             $attempt = $this->attemptService->getOrCreateAttempt($test);
             $attemptId = $attempt->id;
 
             $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
-            $subAttempt  = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
+            $createdSubAttempt = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
+            $subAttempt = AttemptSubTest::whereKey($createdSubAttempt->id)->lockForUpdate()->firstOrFail();
+
+            abort_unless((int) $attempt->user_id === (int) $user->id, 404);
 
             if ($subAttempt->is_finished) {
                 return redirect()
@@ -482,11 +543,6 @@ class UserTestController extends Controller
                     ])
                     ->with('info', 'Subtest ini sudah diselesaikan sebelumnya.');
             }
-            $questions = $subTest->questions()
-                ->select('id', 'correct_option_id')
-                ->get();
-
-            $answersInput = $request->answers ?? [];
             $now = now();
             $upserts = [];
 
@@ -561,6 +617,71 @@ class UserTestController extends Controller
                 ->with('success', 'Semua jawaban telah berhasil disubmit dan subtest selesai!');
         });
     }
+
+    public function submitSingle(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
+    {
+        $tokenCheck = $this->checkRememberToken();
+        if ($tokenCheck) {
+            return $tokenCheck;
+        }
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
+
+        $validated = $request->validate([
+            'question_id' => ['required', 'integer', 'min:1'],
+            'answer' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $question = $subTest->questions()
+            ->select('id', 'correct_option_id')
+            ->whereKey($validated['question_id'])
+            ->first();
+
+        if (!$question) {
+            throw ValidationException::withMessages([
+                'question_id' => 'Pertanyaan tidak termasuk dalam subtest ini.',
+            ]);
+        }
+
+        $answer = $validated['answer'] ?? null;
+        if ($answer !== null && !QuestionChoices::query()
+            ->whereKey($answer)
+            ->where(QuestionChoices::questionForeignKey(), $question->id)
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'answer' => 'Pilihan jawaban tidak dimiliki oleh pertanyaan tersebut.',
+            ]);
+        }
+
+        $user = Auth::user();
+
+        return DB::transaction(function () use ($test, $typeTest, $subTest, $question, $answer, $user) {
+            $attempt = $this->attemptService->getOrCreateAttempt($test);
+            $typeAttempt = $this->attemptService->getOrCreateTypeAttempt($attempt, $typeTest);
+            $createdSubAttempt = $this->attemptService->getOrCreateSubAttempt($typeAttempt, $subTest);
+            $subAttempt = AttemptSubTest::whereKey($createdSubAttempt->id)->lockForUpdate()->firstOrFail();
+
+            abort_unless((int) $attempt->user_id === (int) $user->id, 404);
+            if ($subAttempt->is_finished) {
+                return redirect()->route('user.sub-tests', [
+                    'test' => $test->slug,
+                    'typeTest' => $typeTest->slug,
+                ])->with('info', 'Subtest ini sudah diselesaikan.');
+            }
+
+            $isCorrect = $answer !== null && (int) $answer === (int) $question->correct_option_id;
+            $now = now();
+            AttemptAnswer::upsert([[
+                'attempt_id' => $attempt->id,
+                'question_id' => $question->id,
+                'answer' => $answer,
+                'is_correct' => $isCorrect,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]], ['attempt_id', 'question_id'], ['answer', 'is_correct', 'updated_at']);
+
+            return back()->with('success', 'Jawaban berhasil disimpan.');
+        });
+    }
     
     public function submit(Request $request, Tests $test, TypeTests $typeTest, SubTests $subTest)
     {
@@ -568,6 +689,7 @@ class UserTestController extends Controller
         if ($tokenCheck) {
             return $tokenCheck;
         }
+        $this->assertTestHierarchy($test, $typeTest, $subTest);
 
         if ($request->has('question_id')) {
             return $this->submitSingle($request, $test, $typeTest, $subTest);

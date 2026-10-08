@@ -20,6 +20,6 @@ class Questions extends Model {
     }
 
     public function choices() {
-        return $this->hasMany(QuestionChoices::class);
+        return $this->hasMany(QuestionChoices::class, QuestionChoices::questionForeignKey());
     }
 }

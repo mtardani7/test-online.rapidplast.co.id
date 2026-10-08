@@ -111,11 +111,16 @@ class TableUserController extends Controller
                 : redirect()->back()->withErrors('User not found');
         }
 
-        // prevent deleting admin accounts
-        if ($user->roles()->where('name', 'admin')->exists()) {
+        $actor = $request->user();
+        $targetIsSuperAdmin = $user->hasRole('super_admin');
+        $targetIsAdmin = $user->hasRole('admin');
+
+        // Match the dedicated admin-user flow: only super admins may manage admins,
+        // and a super-admin account is never deletable through this endpoint.
+        if ($targetIsSuperAdmin || ($targetIsAdmin && !$actor?->hasRole('super_admin'))) {
             return $request->ajax()
-                ? response()->json(['message' => 'Cannot delete admin user'], 403)
-                : redirect()->back()->withErrors('Cannot delete admin user');
+                ? response()->json(['message' => 'You are not allowed to delete this account'], 403)
+                : abort(403);
         }
 
         try {

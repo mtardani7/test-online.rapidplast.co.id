@@ -8,30 +8,42 @@ use App\Models\AttemptSubTest;
 use App\Models\Tests;
 use App\Models\TypeTests;
 use App\Models\SubTests;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AttemptService
 {
-    public function getOrCreateAttempt(Tests $test, $userId = null)
+    public function getOrCreateAttempt(Tests $test, ?int $userId = null)
     {
         $userId = $userId ?? Auth::id();
-        
-        return Attempt::firstOrCreate(
-            [
-                'user_id' => $userId,
-                'test_id' => $test->id,
-            ],
-            [
-                'total_correct' => 0,
-                'total_question' => 0,
-                'score' => 0,
-                'started_at' => now(),
-            ]
-        );
+
+        abort_unless($userId, 401);
+
+        return DB::transaction(function () use ($test, $userId) {
+            // attempts intentionally has no user/test unique constraint until retake
+            // policy is decided. Locking the owner row serializes same-user creation.
+            User::query()->whereKey($userId)->lockForUpdate()->firstOrFail();
+
+            return Attempt::firstOrCreate(
+                [
+                    'user_id' => $userId,
+                    'test_id' => $test->id,
+                ],
+                [
+                    'total_correct' => 0,
+                    'total_question' => 0,
+                    'score' => 0,
+                    'started_at' => now(),
+                ]
+            );
+        });
     }
 
     public function getOrCreateTypeAttempt($attempt, TypeTests $typeTest)
     {
+        abort_unless((int) $attempt->test_id === (int) $typeTest->tests_id, 404);
+
         return AttemptTypeTest::firstOrCreate(
             [
                 'attempt_id' => $attempt->id,
@@ -47,6 +59,8 @@ class AttemptService
 
     public function getOrCreateSubAttempt($typeAttempt, SubTests $subTest)
     {
+        abort_unless((int) $typeAttempt->type_test_id === (int) $subTest->type_tests_id, 404);
+
         return AttemptSubTest::firstOrCreate(
             [
                 'attempt_type_test_id' => $typeAttempt->id,
