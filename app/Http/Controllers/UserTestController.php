@@ -681,14 +681,12 @@ class UserTestController extends Controller
                     ->where('attempt_id', $attemptId)
                     ->whereIn('question_id', $questions->pluck('id'))
                     ->whereNotNull('answer')
-                    ->selectRaw(
-                        'SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, '
-                        . 'SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) AS wrong_count'
-                    )
+                    ->selectRaw('SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count')
                     ->first();
+                $correctCount = (int) ($answerStatistics->correct_count ?? 0);
                 $subAttempt->update([
-                    'correct_count' => (int) ($answerStatistics->correct_count ?? 0),
-                    'wrong_count' => (int) ($answerStatistics->wrong_count ?? 0),
+                    'correct_count' => $correctCount,
+                    'wrong_count' => max(0, $questions->count() - $correctCount),
                     'is_finished' => 1,
                     'updated_at' => $now,
                 ]);
@@ -741,13 +739,10 @@ class UserTestController extends Controller
                 ->where('attempt_id', $attemptId)
                 ->whereIn('question_id', $questions->pluck('id'))
                 ->whereNotNull('answer')
-                ->selectRaw(
-                    'SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count, '
-                    . 'SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END) AS wrong_count'
-                )
+                ->selectRaw('SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS correct_count')
                 ->first();
             $correctCount = (int) ($answerStatistics->correct_count ?? 0);
-            $wrongCount = (int) ($answerStatistics->wrong_count ?? 0);
+            $wrongCount = max(0, $questions->count() - $correctCount);
             $subAttempt->update([
                 'correct_count' => $correctCount,
                 'wrong_count' => $wrongCount,
