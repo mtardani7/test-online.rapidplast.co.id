@@ -443,11 +443,6 @@
             if (focusLossCount >= MAX_FOCUS_LOSS) handleExcessFocusLoss();
         }
     });
-    window.addEventListener('blur', () => {
-        focusLossCount++;
-        showToast(`Anda kehilangan fokus (${focusLossCount}/${MAX_FOCUS_LOSS})`, 3000);
-        if (focusLossCount >= MAX_FOCUS_LOSS) handleExcessFocusLoss();
-    });
     document.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
         if ((e.ctrlKey || e.metaKey) && (key === 't' || key === 'n' || key === 'w' || key === 'r')) {
