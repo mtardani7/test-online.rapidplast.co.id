@@ -130,6 +130,9 @@
                         <div class="h-0.5 w-12 bg-gradient-to-r from-brand-500 to-brand-600 rounded-full mt-1 group-hover:w-24 transition-all duration-300"></div>
                     </div>
                     <div class="hidden md:flex items-center space-x-3">
+                        <a href="{{ route('landing') }}" class="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:text-brand-700 hover:bg-brand-50 rounded-full transition-colors">
+                            Cara Pengerjaan
+                        </a>
                         @guest
                             @if (Route::has('login'))
                                 <a href="{{ route('login') }}" 
@@ -206,6 +209,10 @@
                     <div class="py-4 text-center border-b border-slate-100 mb-2">
                         <span class="text-sm font-bold text-brand-600 tracking-wider brand-font uppercase block">Sistem Tes Online</span>
                     </div>
+
+                    <a href="{{ route('landing') }}" class="flex items-center px-4 py-3 text-base font-semibold text-slate-700 hover:text-brand-700 hover:bg-brand-50 rounded-xl transition-colors mb-2">
+                        Cara Pengerjaan
+                    </a>
 
                     @guest
                         @if (Route::has('login'))

@@ -1,12 +1,12 @@
 @extends('layouts.sidebar')
 
-@section('page-title', 'Pengaturan Scoring Test')
+@section('page-title', 'Pengaturan Rumus Penilaian')
 @section('content')
-<div class="p-4 sm:p-6">
+<div class="mx-auto max-w-7xl space-y-6 px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
     <!-- Header -->
     <div class="mb-6 sm:mb-8">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Pengaturan Scoring Test</h1>
-        <p class="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Kelola rumus perhitungan nilai untuk setiap test</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Pengaturan Rumus Penilaian</h1>
+        <p class="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Atur cara sistem menghitung nilai untuk setiap tes.</p>
     </div>
 
     <!-- Success Message -->
@@ -44,8 +44,8 @@
                     <i class="fas fa-calculator text-white text-sm sm:text-base"></i>
                 </div>
                 <div>
-                    <h2 class="text-lg sm:text-xl font-bold text-gray-900">Buat Rumus Scoring Baru</h2>
-                    <p class="text-gray-600 text-xs sm:text-sm mt-0.5">Buat rumus perhitungan nilai untuk test tertentu</p>
+                    <h2 class="text-lg sm:text-xl font-bold text-gray-900">Buat rumus baru</h2>
+                    <p class="text-gray-600 text-xs sm:text-sm mt-0.5">Tentukan rumus yang digunakan untuk menghitung nilai tes.</p>
                 </div>
             </div>
         </div>
@@ -57,7 +57,7 @@
                 <!-- Test Selection -->
                 <div class="mb-4 sm:mb-6">
                     <label class="block text-gray-700 text-sm font-medium mb-2">
-                        Pilih Test <span class="text-red-500">*</span>
+                        Pilih tes <span class="text-red-500">*</span>
                     </label>
                     <select name="test_id" class="w-full px-4 py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all" required>
                         <option value="">-- Pilih Test --</option>
@@ -76,7 +76,7 @@
                 <div class="mb-4 sm:mb-6">
                     <div class="flex items-center justify-between mb-2">
                         <label class="block text-gray-700 text-sm font-medium">
-                            Formula (Rumus Scoring) <span class="text-red-500">*</span>
+                            Rumus penilaian <span class="text-red-500">*</span>
                         </label>
                         <button type="button" onclick="showFormulaHelp()" class="text-red-600 hover:text-red-700 text-sm">
                             <i class="fas fa-question-circle mr-1"></i> Bantuan
@@ -229,44 +229,50 @@
     <!-- Rules List Card -->
     <div class="bg-white rounded-xl sm:rounded-2xl shadow-md overflow-hidden">
         <div class="px-4 sm:px-6 py-4 border-b bg-gradient-to-r from-gray-50 to-white">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center mb-3 sm:mb-0">
                     <div class="w-8 h-8 sm:w-10 sm:h-10 bg-purple-600 rounded-lg flex items-center justify-center mr-3 sm:mr-4">
                         <i class="fas fa-list-alt text-white text-sm sm:text-base"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg sm:text-xl font-bold text-gray-900">Daftar Rule Scoring</h2>
-                        <p class="text-gray-600 text-xs sm:text-sm mt-0.5">Semua rumus perhitungan nilai yang telah dibuat</p>
+                        <h2 class="text-lg sm:text-xl font-bold text-gray-900">Daftar rumus penilaian</h2>
+                        <p class="text-gray-600 text-xs sm:text-sm mt-0.5">Rumus yang digunakan untuk menghitung nilai setiap tes</p>
                     </div>
                 </div>
-                <span class="px-3 sm:px-4 py-1.5 sm:py-2 bg-purple-100 text-purple-800 rounded-full text-xs sm:text-sm font-medium">
-                    {{ $rules->count() }} rumus
-                </span>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    @if($rules->isNotEmpty())
+                        <label for="scoringRuleSearch" class="sr-only">Cari berdasarkan nama tes atau rumus</label>
+                        <input id="scoringRuleSearch" type="search" placeholder="Cari tes atau rumus..." class="min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-rose-400 focus:ring-4 focus:ring-rose-100 sm:w-64">
+                    @endif
+                    <span class="px-3 sm:px-4 py-1.5 sm:py-2 bg-purple-100 text-purple-800 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap">
+                        <span id="scoringRuleCount">{{ $rules->count() }}</span> rumus
+                    </span>
+                </div>
             </div>
         </div>
         
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[600px]">
+            <table id="scoringRulesTable" class="w-full">
                 <thead>
                     <tr class="bg-gray-50 border-b">
-                        <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm">Test</th>
-                        <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm">Formula</th>
+                        <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm">Tes</th>
+                        <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm">Rumus</th>
                         <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm">Variabel</th>
                         <th class="py-3 sm:py-4 px-4 sm:px-6 text-left text-gray-700 font-semibold text-xs sm:text-sm w-28 sm:w-32">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @forelse($rules as $rule)
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="py-3 sm:py-4 px-4 sm:px-6">
+                    <tr class="scoring-rule-row hover:bg-gray-50 transition-colors">
+                        <td data-label="Tes" class="py-3 sm:py-4 px-4 sm:px-6">
                             <div class="flex items-center">
                                 <div>
-                                    <p class="font-medium text-gray-900 text-sm sm:text-base">{{ $rule->test->name ?? 'Test tidak ditemukan' }}</p>
+                            <p class="font-medium text-gray-900 text-sm sm:text-base">{{ $rule->test->name ?? 'Tes tidak ditemukan' }}</p>
                                     <p class="text-gray-500 text-xs mt-0.5">{{ $rule->test->slug ?? '-' }}</p>
                                 </div>
                             </div>
                         </td>
-                        <td class="py-3 sm:py-4 px-4 sm:px-6">
+                        <td data-label="Rumus" class="py-3 sm:py-4 px-4 sm:px-6">
                             <div class="font-mono text-xs sm:text-sm bg-gray-100 px-3 py-2 rounded-lg text-gray-800 break-all">
                                 {{ $rule->formula }}
                             </div>
@@ -274,7 +280,7 @@
                             <p class="text-gray-600 text-xs mt-1 sm:mt-2 line-clamp-2">{{ $rule->description }}</p>
                             @endif
                         </td>
-                        <td class="py-3 sm:py-4 px-4 sm:px-6">
+                        <td data-label="Variabel" class="py-3 sm:py-4 px-4 sm:px-6">
                             <div class="flex flex-wrap gap-1 sm:gap-2 max-w-[200px]">
                                 @foreach($rule->components as $c)
                                 <span class="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-1">
@@ -284,39 +290,42 @@
                                 @endforeach
                             </div>
                         </td>
-                        <td class="py-3 sm:py-4 px-4 sm:px-6">
+                        <td data-label="Aksi" class="py-3 sm:py-4 px-4 sm:px-6">
                             <div class="flex items-center space-x-1 sm:space-x-2">
                                 <button 
                                     onclick="editRule({{ json_encode($rule) }}, {{ json_encode($rule->components->pluck('key')->toArray()) }})"
                                     class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="Edit rule"
+                                    title="Edit rumus"
                                 >
                                     <i class="fas fa-edit text-sm sm:text-base"></i>
+                                    <span class="sr-only">Edit rumus untuk {{ $rule->test->name ?? 'tes ini' }}</span>
                                 </button>
                                 <button 
                                     onclick="confirmDelete({{ $rule->id }}, '{{ $rule->test->name ?? 'Rule' }}')"
                                     class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Hapus rule"
+                                    title="Hapus rumus"
                                 >
                                     <i class="fas fa-trash text-sm sm:text-base"></i>
+                                    <span class="sr-only">Hapus rumus untuk {{ $rule->test->name ?? 'tes ini' }}</span>
                                 </button>
                             </div>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="py-8 sm:py-12 text-center">
+                        <td colspan="4" class="py-8 sm:py-12 text-center">
                             <div class="w-16 h-16 sm:w-24 sm:h-24 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4 sm:mb-6">
                                 <i class="fas fa-calculator text-xl sm:text-3xl text-gray-400"></i>
                             </div>
-                            <h4 class="text-base sm:text-xl font-semibold text-gray-700 mb-2">Belum Ada Rule Scoring</h4>
-                            <p class="text-gray-500 text-sm sm:text-base mb-4">Buat rumus scoring pertama untuk memulai</p>
+                            <h4 class="text-base sm:text-xl font-semibold text-gray-700 mb-2">Belum ada rumus penilaian</h4>
+                            <p class="text-gray-500 text-sm sm:text-base mb-4">Buat rumus pertama agar sistem dapat menghitung nilai.</p>
                         </td>
                     </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        <p id="scoringRuleSearchEmpty" class="hidden px-4 py-8 text-center text-sm text-slate-500 sm:px-6">Rumus tidak ditemukan. Coba kata kunci lain.</p>
     </div>
 
     <!-- Help Section -->
@@ -371,7 +380,7 @@
 <div id="deleteModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden z-50 transition-opacity">
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative transform overflow-hidden rounded-lg bg-white shadow-xl transition-all w-full max-w-md">
+            <div class="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-xl transition-all">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                     <div class="sm:flex sm:items-start">
                         <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100">
@@ -413,7 +422,7 @@
 <div id="editModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden z-50 transition-opacity">
     <div class="fixed inset-0 z-50 overflow-y-auto">
         <div class="flex min-h-full items-center justify-center p-4">
-            <div class="relative transform overflow-hidden rounded-lg bg-white shadow-xl transition-all w-full max-w-2xl">
+            <div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl transition-all">
                 <div class="bg-white px-4 pb-4 pt-5 sm:p-6">
                     <div class="flex items-center justify-between mb-4">
                         <div>
@@ -735,6 +744,19 @@ document.getElementById('formulaForm').addEventListener('submit', function(e) {
         e.preventDefault();
     }
 });
+
+document.getElementById('scoringRuleSearch')?.addEventListener('input', function() {
+    const term = this.value.trim().toLocaleLowerCase();
+    const rows = [...document.querySelectorAll('#scoringRulesTable .scoring-rule-row')];
+    let visible = 0;
+    rows.forEach(row => {
+        const matches = row.textContent.toLocaleLowerCase().includes(term);
+        row.classList.toggle('hidden', !matches);
+        if (matches) visible++;
+    });
+    document.getElementById('scoringRuleCount').textContent = visible;
+    document.getElementById('scoringRuleSearchEmpty')?.classList.toggle('hidden', visible !== 0 || term === '');
+});
 </script>
 
 <style>
@@ -745,12 +767,53 @@ document.getElementById('formulaForm').addEventListener('submit', function(e) {
         overflow: hidden;
     }
     
-    @media (max-width: 640px) {
-        table {
+    @media (max-width: 767px) {
+        #scoringRulesTable,
+        #scoringRulesTable tbody,
+        #scoringRulesTable tr,
+        #scoringRulesTable td {
             display: block;
+            width: 100%;
         }
-        th, td {
-            padding: 0.75rem 0.5rem;
+
+        #scoringRulesTable thead {
+            display: none;
+        }
+
+        #scoringRulesTable tbody tr.scoring-rule-row {
+            margin: 0.75rem;
+            width: calc(100% - 1.5rem);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+        }
+
+        #scoringRulesTable tbody tr.scoring-rule-row td {
+            display: grid;
+            grid-template-columns: minmax(5.5rem, 0.32fr) minmax(0, 1fr);
+            align-items: start;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            overflow-wrap: anywhere;
+        }
+
+        #scoringRulesTable tbody tr.scoring-rule-row td::before {
+            content: attr(data-label);
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1.25rem;
+        }
+
+        #scoringRulesTable tbody tr.scoring-rule-row td:last-child {
+            border-bottom: 0;
+        }
+
+        #scoringRulesTable td[data-label="Aksi"] > div {
+            justify-content: flex-end;
         }
     }
     

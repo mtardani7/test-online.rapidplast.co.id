@@ -96,6 +96,25 @@ class BackendAttemptSecurityTest extends TestCase
         $this->actingAs($user)->get(route('dashboard.users'))->assertForbidden();
     }
 
+    public function test_root_landing_page_is_public_and_explains_the_test_flow(): void
+    {
+        $this->get(route('landing'))
+            ->assertOk()
+            ->assertSee('Cara Mengerjakan Tes')
+            ->assertSee('Waktu mulai dihitung')
+            ->assertSee('Jika dilakukan sampai 3 kali')
+            ->assertSee(route('login'), false)
+            ->assertSee(route('register'), false);
+
+        $this->assertSame('/', parse_url(route('landing'), PHP_URL_PATH) ?: '/');
+        $this->assertSame('/home', parse_url(route('user.tests'), PHP_URL_PATH));
+        $this->assertFalse(Route::has('how-to'));
+        $this->get('/cara-pengerjaan')->assertNotFound();
+
+        $this->get(route('login'))->assertOk()->assertSee(route('landing'), false);
+        $this->get(route('register'))->assertOk()->assertSee(route('landing'), false);
+    }
+
     public function test_admin_dashboard_renders_without_validation_errors_in_session(): void
     {
         [$admin] = $this->makeUserWithRole('admin');

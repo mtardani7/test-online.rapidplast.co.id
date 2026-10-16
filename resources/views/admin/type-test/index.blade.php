@@ -1,7 +1,9 @@
 @extends('layouts.sidebar')
 
+@section('page-title', 'Kategori Tes')
+@section('current-page', 'Kategori')
 @section('content')
-<div class="p-6">
+<div class="space-y-5 sm:space-y-7">
     @if(session('success'))
         <div id="success-message" class="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border border-green-200 animate-fade-in">
             <div class="flex items-center justify-between">
@@ -45,64 +47,67 @@
             </div>
         </div>
     @endif
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div class="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-            <a href="{{ route('test.index') }}" class="hover:text-red-600 transition-colors">Test</a>
-            <span>/</span>
-            <span class="text-gray-900 font-medium">{{ $test->name }}</span>
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-700 via-rose-600 to-indigo-700 p-5 text-white shadow-lg shadow-rose-900/10 sm:p-7 lg:p-8">
+        <div class="pointer-events-none absolute -right-12 -top-20 h-60 w-60 rounded-full border-[36px] border-white/10"></div>
+        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div class="min-w-0">
+                <nav aria-label="Breadcrumb" class="mb-3 flex items-center gap-2 text-xs font-medium text-rose-100 sm:text-sm">
+                    <a href="{{ route('test.index') }}" class="hover:text-white">Daftar Tes</a>
+                    <i class="fas fa-chevron-right text-[9px] opacity-70"></i>
+                    <span class="max-w-[16rem] truncate text-white">{{ $test->name }}</span>
+                </nav>
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-rose-100">Kelola kategori tes</p>
+                <h1 class="mt-2 break-words text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">{{ $test->name }}</h1>
+                <p class="mt-2 text-sm leading-6 text-rose-50 sm:text-base">Atur kategori, petunjuk, dan kumpulan subtest untuk tes ini.</p>
+            </div>
+            <button type="button" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-rose-700 shadow-md transition hover:-translate-y-0.5 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-white/80 sm:w-auto"
+                data-modal-toggle="createTypeTestModal">
+                <i class="fas fa-plus mr-2"></i> Tambah Kategori
+            </button>
         </div>
-        <div>
-            <h1 class="text-3xl font-bold text-gray-900">{{ $test->name }}</h1>
-            <p class="text-gray-600 mt-2">Kelola sub test untuk test ini</p>
-        </div>
-        <button 
-            class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center"
-            data-modal-toggle="createTypeTestModal">
-            <i class="fas fa-plus mr-2"></i> Tambah Sub Test
-        </button>
     </div>
-    <div class="bg-gradient-to-r from-red-50 to-white rounded-2xl shadow-md border border-red-100 mb-8 overflow-hidden">
-        <div class="px-6 py-5 border-b border-red-100">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center mr-4">
-                        <i class="fas fa-info-circle text-white text-xl"></i>
+                    <div class="mr-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-rose-100 sm:mr-4 sm:h-12 sm:w-12">
+                        <i class="fas fa-info-circle text-lg sm:text-xl"></i>
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-gray-900">Informasi Test</h3>
-                        <p class="text-gray-600 text-sm">Detail dan peraturan untuk test ini</p>
+                        <h3 class="text-base font-extrabold text-slate-900 sm:text-lg">Informasi Tes</h3>
+                        <p class="text-xs text-slate-500 sm:text-sm">Detail, peraturan, dan instruksi</p>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="p-6">
+        <div class="p-4 sm:p-6">
             <div class="mb-6">
                 <div class="text-gray-700">
                     @if($test->rules_formatted)
-                        <ul class="space-y-2 ml-4">
+                        <ul class="space-y-2 sm:ml-2">
                             @foreach($test->rules_formatted as $rule)
                                 <li class="flex items-start">
-                                    <span class="text-red-600 mr-2">•</span>
-                                    <span>{{ $rule }}</span>
+                                    <span class="mr-2 mt-0.5 text-rose-600">•</span>
+                                    <span class="text-sm leading-6 text-slate-700 sm:text-base">{{ $rule }}</span>
                                 </li>
                             @endforeach
                         </ul>
                     @else
-                        <p class="text-gray-500 italic">Tidak ada peraturan tersedia.</p>
+                        <p class="text-sm italic text-slate-500">Tidak ada peraturan tersedia.</p>
                     @endif
                 </div>
             </div>
 
             @if($test->instructions_formatted)
             <div class="mt-6">
-                <h4 class="font-semibold text-gray-900 mb-3">Instruksi</h4>
-                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg">
+                <h4 class="mb-3 font-bold text-slate-900">Instruksi</h4>
+                <div class="rounded-xl border border-amber-100 bg-amber-50/70 p-4 sm:p-5">
                     <div class="flex">
                         <div class="flex-shrink-0">
-                            <i class="fas fa-exclamation-circle text-yellow-500 text-xl"></i>
+                            <i class="fas fa-exclamation-circle text-amber-600 text-lg sm:text-xl"></i>
                         </div>
                         <div class="ml-3">
-                            <ol class="list-decimal pl-5 space-y-2 text-gray-800">
+                            <ol class="list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700 sm:text-base">
                                 @foreach($test->instructions_formatted as $instruction)
                                     <li>{{ $instruction }}</li>
                                 @endforeach
@@ -115,33 +120,36 @@
         </div>
     </div>
     @if($typeTests->isEmpty())
-    <div class="bg-white rounded-2xl shadow-md p-12 text-center">
-        <div class="w-24 h-24 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-6">
-            <i class="fas fa-layer-group text-3xl text-gray-400"></i>
+    <div class="rounded-3xl border border-slate-200 bg-white px-5 py-10 text-center shadow-sm sm:px-8 sm:py-14">
+        <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 sm:h-20 sm:w-20">
+            <i class="fas fa-layer-group text-2xl sm:text-3xl"></i>
         </div>
-        <h3 class="text-2xl font-bold text-gray-700 mb-3">Belum Ada Sub Test</h3>
-        <p class="text-gray-500 mb-8 max-w-md mx-auto">
-            Anda belum membuat sub test untuk test ini. Sub test digunakan untuk mengelompokkan soal berdasarkan kategori tertentu.
+        <h3 class="text-xl font-extrabold text-slate-900 sm:text-2xl">Belum ada kategori tes</h3>
+        <p class="mx-auto mb-7 mt-2 max-w-lg text-sm leading-6 text-slate-500 sm:text-base">
+            Buat kategori untuk mengelompokkan subtest dan soal berdasarkan bagian tes.
         </p>
-        <button 
-            class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-8 py-3 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center mx-auto"
+        <button type="button"
+            class="mx-auto inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-3 font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:from-rose-700 hover:to-rose-800"
             data-modal-toggle="createTypeTestModal">
-            <i class="fas fa-plus mr-2"></i> Buat Sub Test Pertama
+            <i class="fas fa-plus mr-2"></i> Buat Kategori Pertama
         </button>
     </div>
     @else
-    <div class="mb-6">
-        <div class="flex items-center justify-between mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Daftar Sub Test</h2>
-            <p class="text-gray-600 text-sm">{{ $typeTests->count() }} sub test tersedia</p>
+    <div class="space-y-4">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <h2 class="text-lg font-extrabold text-slate-900 sm:text-xl">Kategori Tes</h2>
+                <p class="mt-1 text-sm text-slate-500">Pilih kategori untuk mengelola subtest dan soal.</p>
+            </div>
+            <p class="text-sm font-semibold text-slate-500"><span class="text-slate-900">{{ $typeTests->count() }}</span> kategori tersedia</p>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 sm:gap-5">
             @foreach($typeTests as $type)
-            <div class="bg-white rounded-2xl shadow-md border border-gray-200 hover:border-red-300 transition-all duration-300 hover:shadow-lg overflow-hidden">
-                <div class="px-5 py-4 border-b bg-gradient-to-r from-gray-50 to-white flex items-center justify-between">
+            <div class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-lg hover:shadow-slate-900/5">
+                <div class="flex items-center justify-between rounded-t-2xl border-b border-slate-100 bg-gradient-to-r from-rose-50 to-white px-4 py-4 sm:px-5">
                     <div class="flex items-center">
-                        <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-3">
+                        <div class="mr-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 shadow-sm">
                             <i class="fas fa-cube text-white"></i>
                         </div>
                         <div>
@@ -149,11 +157,11 @@
                         </div>
                     </div>
                     <div class="relative">
-                        <button class="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100" id="typeMenu{{ $type->id }}">
+                        <button type="button" aria-label="Aksi untuk {{ $type->name }}" class="rounded-xl p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300" id="typeMenu{{ $type->id }}">
                             <i class="fas fa-ellipsis-v"></i>
                         </button>
 
-                        <div id="typeDropdown{{ $type->id }}" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-2 z-10">
+                        <div id="typeDropdown{{ $type->id }}" class="hidden absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-xl z-30">
                             <a href="{{ route('sub-test.index', [$test->slug, $type->slug]) }}" 
                                class="flex items-center px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors duration-150">
                                 <i class="fas fa-eye mr-3 text-gray-400 w-4 text-center"></i>
@@ -176,26 +184,26 @@
                     </div>
                 </div>
 
-                <div class="p-5">
+                <div class="p-4 sm:p-5">
                     <div class="mb-4">
-                        <p class="text-gray-600 text-sm line-clamp-3 text-justify">
+                        <p class="text-sm leading-6 text-slate-600 line-clamp-3">
                             {{ $type->description ?? 'Tidak ada deskripsi' }}
                         </p>
                     </div>
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-gray-500">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span class="text-slate-500">
                             <i class="far fa-calendar mr-1"></i>
                             {{ $type->created_at->format('d M Y') }}
                         </span>
-                        <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                        <span class="rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
                             {{ $type->subTests->count() }} sub tes
                         </span>
                     </div>
                 </div>
 
-                <div class="px-5 py-3 bg-gray-50 border-t">
+                <div class="rounded-b-2xl border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
                     <a href="{{ route('sub-test.index', [$test->slug, $type->slug]) }}" 
-                       class="text-red-600 hover:text-red-700 font-medium text-sm flex items-center justify-between group">
+                       class="flex items-center justify-between text-sm font-semibold text-rose-700 hover:text-rose-800 group">
                         <span>Kelola Soal</span>
                         <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
                     </a>
@@ -207,8 +215,8 @@
     @endif
 </div>
 
-<div id="createTypeTestModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md modal-animation">
+<div id="createTypeTestModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-2xl">
         <form action="{{ route('type-test.store', $test->slug) }}" method="POST" id="createTypeTestForm" novalidate>
             @csrf
             <div class="px-6 py-4 border-b flex items-center justify-between">
@@ -321,8 +329,8 @@
 </div>
 
 @foreach($typeTests as $type)
-<div id="editModal{{ $type->id }}" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md modal-animation">
+<div id="editModal{{ $type->id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-2xl">
         <form action="{{ route('type-test.update', [$test->slug, $type->slug]) }}" method="POST" id="editTypeTestForm{{ $type->id }}" novalidate>
             @csrf
             @method('PUT')
@@ -434,8 +442,8 @@
     </div>
 </div>
 
-<div id="deleteModal{{ $type->id }}" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-md modal-animation">
+<div id="deleteModal{{ $type->id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-2xl">
         <form action="{{ route('type-test.destroy', [$test->slug, $type->slug]) }}" method="POST" id="deleteTypeTestForm{{ $type->id }}">
             @csrf
             @method('DELETE')

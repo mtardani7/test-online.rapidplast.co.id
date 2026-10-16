@@ -1,7 +1,9 @@
 @extends('layouts.sidebar')
 
+@section('page-title', 'Kelola Soal')
+@section('current-page', 'Kelola Soal')
 @section('content')
-<div class="p-6">
+<div class="space-y-5 sm:space-y-7">
     @if(session('success'))
         <div id="success-message" class="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border border-green-200 animate-fade-in">
             <div class="flex items-center justify-between">
@@ -46,132 +48,138 @@
         </div>
     @endif
 
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-            <div class="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-                <a href="{{ route('test.index') }}" class="hover:text-red-600 transition-colors">Test</a>
-                <span>/</span>
-                <a href="{{ route('type-test.index', $test->slug) }}" class="hover:text-red-600 transition-colors">{{ $test->name }}</a>
-                <span>/</span>
-                <a href="{{ route('sub-test.index', [$test->slug, $typeTest->slug]) }}" class="hover:text-red-600 transition-colors">{{ $typeTest->name }}</a>
-                <span>/</span>
-                <span class="text-gray-900 font-medium">{{ $subTest->name }}</span>
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-700 via-rose-600 to-indigo-700 p-5 text-white shadow-lg shadow-rose-900/10 sm:p-7 lg:p-8">
+        <div class="pointer-events-none absolute -right-12 -top-20 h-60 w-60 rounded-full border-[36px] border-white/10"></div>
+        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div class="min-w-0">
+                <nav aria-label="Breadcrumb" class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-rose-100 sm:text-sm">
+                    <a href="{{ route('test.index') }}" class="hover:text-white">Tes</a>
+                    <i class="fas fa-chevron-right text-[9px] opacity-70"></i>
+                    <a href="{{ route('type-test.index', $test->slug) }}" class="max-w-[10rem] truncate hover:text-white">{{ $test->name }}</a>
+                    <i class="fas fa-chevron-right text-[9px] opacity-70"></i>
+                    <a href="{{ route('sub-test.index', [$test->slug, $typeTest->slug]) }}" class="max-w-[10rem] truncate hover:text-white">{{ $typeTest->name }}</a>
+                    <i class="fas fa-chevron-right text-[9px] opacity-70"></i>
+                    <span class="max-w-[12rem] truncate text-white">{{ $subTest->name }}</span>
+                </nav>
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-rose-100">Bank soal</p>
+                <h1 class="mt-2 text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">Kelola Soal</h1>
+                <p class="mt-2 text-sm leading-6 text-rose-50 sm:text-base">{{ $subTest->name }} <span class="px-1.5 opacity-70">·</span> Kelola pertanyaan dan pilihan jawaban.</p>
             </div>
-            <h1 class="text-3xl font-bold text-gray-900">Manajemen Pertanyaan</h1>
-            <p class="text-gray-600 mt-2">{{ $subTest->name }} - Kelola soal dan pilihan jawaban</p>
-        </div>
-        <div class="flex items-center space-x-3">
-            <a href="{{ route('sub-test.index', [$test->slug, $typeTest->slug]) }}" 
-               class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all flex items-center">
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <a href="{{ route('sub-test.index', [$test->slug, $typeTest->slug]) }}"
+               class="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/70">
                 <i class="fas fa-arrow-left mr-2"></i> Kembali
             </a>
-            <button 
-                class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2.5 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center"
+            <button type="button"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-rose-700 shadow-md transition hover:-translate-y-0.5 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-white/80"
                 data-modal-toggle="addModal">
-                <i class="fas fa-plus mr-2"></i> Tambah Pertanyaan
+                <i class="fas fa-plus mr-2"></i> Tambah Soal
             </button>
+            </div>
         </div>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white rounded-2xl shadow p-5 transition-all hover:shadow-md">
-            <div class="flex items-center">
-                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mr-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
+            <div class="flex items-center gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 sm:h-12 sm:w-12">
                     <i class="fas fa-question-circle text-blue-600 text-xl"></i>
                 </div>
                 <div>
-                    <p class="text-gray-500 text-sm">Total Pertanyaan</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $totalQuestions ?? 0 }}</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Pertanyaan</p>
+                    <p class="mt-0.5 text-2xl font-black tracking-tight text-slate-900">{{ $totalQuestions ?? 0 }}</p>
                 </div>
             </div>
         </div>
-        <div class="bg-white rounded-2xl shadow p-5 transition-all hover:shadow-md">
-            <div class="flex items-center">
-                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mr-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
+            <div class="flex items-center gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100 sm:h-12 sm:w-12">
                     <i class="fas fa-image text-green-600 text-xl"></i>
                 </div>
                 <div>
-                    <p class="text-gray-500 text-sm">Dengan Gambar</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $questionsWithImage ?? 0 }}</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Dengan Gambar</p>
+                    <p class="mt-0.5 text-2xl font-black tracking-tight text-slate-900">{{ $questionsWithImage ?? 0 }}</p>
                 </div>
             </div>
         </div>
-        <div class="bg-white rounded-2xl shadow p-5 transition-all hover:shadow-md">
-            <div class="flex items-center">
-                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mr-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md sm:p-5">
+            <div class="flex items-center gap-4">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-violet-100 sm:h-12 sm:w-12">
                     <i class="fas fa-list-alt text-purple-600 text-xl"></i>
                 </div>
                 <div>
-                    <p class="text-gray-500 text-sm">Rata-rata Opsi</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $avgChoices ?? 0 }}</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rata-rata Opsi</p>
+                    <p class="mt-0.5 text-2xl font-black tracking-tight text-slate-900">{{ $avgChoices ?? 0 }}</p>
                 </div>
             </div>
         </div>
     </div>
-    <div class="bg-white rounded-2xl shadow-md overflow-hidden mb-6">
-        <div class="px-6 py-4 border-b">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-900">Daftar Pertanyaan</h2>
-                    <p class="text-gray-600 text-sm mt-1">Kelola semua pertanyaan untuk test ini</p>
+                    <h2 class="text-lg font-extrabold text-slate-900 sm:text-xl">Daftar Soal</h2>
+                    <p class="mt-1 text-sm text-slate-500">Cari soal, periksa jawaban, atau ubah detailnya.</p>
                 </div>
-                <div class="flex items-center justify-between md:justify-end w-full md:w-auto">
-                    <span class="text-sm text-gray-500 mr-4">
-                        {{ $questions->total() }} total soal
+                <div class="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 sm:text-sm">
+                        {{ $questions->total() }} soal
                     </span>
-                    <button 
+                    <button type="button"
                         id="filterToggle" 
-                        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm flex items-center"
+                        aria-controls="filterForm"
+                        aria-expanded="{{ request()->filled('search') || request()->filled('has_image') || request()->filled('has_correct') ? 'true' : 'false' }}"
+                        class="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:px-4"
                     >
-                        <i class="fas fa-filter mr-2"></i> Filter
+                        <i class="fas fa-filter mr-2"></i> Cari & Filter
                     </button>
                 </div>
             </div>
-            <div id="filterForm" class="hidden mt-4 pt-4 border-t">
-                <form method="GET" action="{{ route('question.index', [$test->slug, $typeTest->slug, $subTest->slug]) }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div id="filterForm" class="{{ request()->filled('search') || request()->filled('has_image') || request()->filled('has_correct') ? '' : 'hidden' }} mt-4 border-t border-slate-100 pt-4 sm:mt-5 sm:pt-5">
+                <form method="GET" action="{{ route('question.index', [$test->slug, $typeTest->slug, $subTest->slug]) }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <div>
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Cari Pertanyaan</label>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Cari soal</label>
                         <div class="relative">
                             <input 
                                 type="text" 
                                 name="search" 
                                 value="{{ request('search') }}"
-                                class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-sm"
-                                placeholder="Cari pertanyaan atau opsi..."
+                                class="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-4 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                                placeholder="Ketik teks soal atau opsi..."
                             >
                             <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Filter Gambar</label>
-                        <select name="has_image" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-sm">
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">Gambar</label>
+                        <select name="has_image" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100">
                             <option value="">Semua</option>
                             <option value="yes" {{ request('has_image') == 'yes' ? 'selected' : '' }}>Dengan Gambar</option>
                             <option value="no" {{ request('has_image') == 'no' ? 'selected' : '' }}>Tanpa Gambar</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Jawaban Benar</label>
-                        <select name="has_correct" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-sm">
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">Status jawaban benar</label>
+                        <select name="has_correct" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100">
                             <option value="">Semua</option>
                             <option value="yes" {{ request('has_correct') == 'yes' ? 'selected' : '' }}>Sudah ada jawaban</option>
                             <option value="no" {{ request('has_correct') == 'no' ? 'selected' : '' }}>Belum ada jawaban</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Urutkan</label>
-                        <select name="sort_by" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all text-sm">
+                        <label class="mb-2 block text-sm font-semibold text-slate-700">Urutkan</label>
+                        <select name="sort_by" class="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100">
                             <option value="created_at" {{ request('sort_by', 'created_at') == 'created_at' ? 'selected' : '' }}>Tanggal Dibuat</option>
                             <option value="question_text" {{ request('sort_by') == 'question_text' ? 'selected' : '' }}>Pertanyaan A-Z</option>
                         </select>
                     </div>
                     
                     <!-- Action Buttons -->
-                    <div class="md:col-span-4 flex items-center justify-end space-x-3 pt-2">
+                    <div class="flex flex-col-reverse gap-2 pt-1 sm:col-span-2 sm:flex-row sm:justify-end xl:col-span-4">
                         <a href="{{ route('question.index', [$test->slug, $typeTest->slug, $subTest->slug]) }}" 
-                           class="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all text-sm">
+                           class="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
                             Reset Filter
                         </a>
-                        <button type="submit" class="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-sm">
+                        <button type="submit" class="inline-flex min-h-10 items-center justify-center rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700">
                             Terapkan Filter
                         </button>
                     </div>
@@ -179,29 +187,83 @@
             </div>
         </div>
         @if($questions->isEmpty())
-        <div class="py-12 text-center">
-            <div class="w-24 h-24 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-6">
-                <i class="fas fa-question-circle text-3xl text-gray-400"></i>
+        <div class="px-5 py-10 text-center sm:py-14">
+            <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 sm:h-20 sm:w-20">
+                <i class="fas fa-question-circle text-2xl sm:text-3xl"></i>
             </div>
-            <h4 class="text-xl font-semibold text-gray-700 mb-2">Belum Ada Pertanyaan</h4>
-            <p class="text-gray-500 mb-6">Mulai dengan menambahkan pertanyaan pertama</p>
-            <button 
-                class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center mx-auto"
+            <h4 class="text-xl font-extrabold text-slate-900">Belum ada soal</h4>
+            <p class="mb-6 mt-2 text-sm text-slate-500">Tambahkan soal pertama untuk subtest ini.</p>
+            <button type="button"
+                class="mx-auto inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-3 font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:from-rose-700 hover:to-rose-800"
                 data-modal-toggle="addModal">
-                <i class="fas fa-plus mr-2"></i> Tambah Pertanyaan
+                <i class="fas fa-plus mr-2"></i> Tambah Soal
             </button>
         </div>
         @else
-        <div class="overflow-x-auto">
-            <table class="w-full">
+        <div class="space-y-3 p-3 md:hidden">
+            @foreach ($questions as $q)
+            @php
+                $hasImage = !empty($q->image);
+                $optionsCount = $q->choices->count();
+                $questionNumber = ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration;
+            @endphp
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">{{ $questionNumber }}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="whitespace-pre-line break-words text-sm font-semibold leading-6 text-slate-900">{{ $q->question_text ?? '-' }}</p>
+                        @if($q->correct_option_id)
+                            <span class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                <i class="fas fa-check-circle"></i> Jawaban benar tersedia
+                            </span>
+                        @else
+                            <span class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                <i class="fas fa-exclamation-circle"></i> Jawaban belum ditandai
+                            </span>
+                        @endif
+                    </div>
+                </div>
+                @if($q->question_optional)
+                    <p class="mt-3 whitespace-pre-line break-words border-l-2 border-slate-200 pl-3 text-xs leading-5 text-slate-500">{{ $q->question_optional }}</p>
+                @endif
+                <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                        <i class="fas fa-list-ol"></i> {{ $optionsCount }} opsi
+                    </span>
+                    @if($hasImage)
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                            <i class="fas fa-image"></i> Gambar
+                        </span>
+                    @endif
+                    <div class="ml-auto flex items-center gap-1">
+                        <button type="button" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-violet-50 hover:text-violet-700" data-modal-toggle="detailModal{{ $q->id }}" aria-label="Lihat opsi soal {{ $questionNumber }}" title="Lihat detail soal">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-7 9.75-7 9.75 7 9.75 7-3.5 7-9.75 7-9.75-7-9.75-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button type="button" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-rose-50 hover:text-rose-700" data-modal-toggle="editModal{{ $q->id }}" aria-label="Edit soal {{ $questionNumber }}" title="Edit soal">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 2.651 2.651M4.5 19.5l4.125-.825L19.02 8.28a1.875 1.875 0 0 0-2.652-2.652L5.973 16.02 5.25 19.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6.75 17.25 10.5"/></svg>
+                        </button>
+                        <form action="{{ route('question.destroy', [$test->slug, $typeTest->slug, $subTest->slug, $q->id]) }}" method="POST" class="delete-form" data-confirm-delete="true" data-item-name="{{ Str::limit($q->question_text, 50) }}">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-red-50 hover:text-red-600" title="Hapus soal" aria-label="Hapus soal {{ $questionNumber }}">
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M9.75 6.75V4.5h4.5v2.25m-8.25 0 .75 13.5h10.5l.75-13.5M10.125 10.5v6m3.75-6v6"/></svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </article>
+            @endforeach
+        </div>
+        <div class="hidden overflow-x-auto md:block">
+            <table class="w-full min-w-[980px]">
                 <thead>
-                    <tr class="bg-gray-50 border-b">
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm w-16">#</th>
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm">Pertanyaan</th>
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm">Keterangan</th>
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm w-32">Gambar</th>
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm w-40">Opsi Jawaban</th>
-                        <th class="py-4 px-6 text-left text-gray-700 font-semibold text-sm w-48">Aksi</th>
+                    <tr class="border-b border-slate-100 bg-slate-50/80">
+                        <th class="w-16 px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">#</th>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Pertanyaan</th>
+                        <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Keterangan</th>
+                        <th class="w-32 px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Gambar</th>
+                        <th class="w-40 px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Opsi Jawaban</th>
+                        <th class="w-40 px-5 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -210,62 +272,59 @@
                         $hasImage = !empty($q->image);
                         $optionsCount = $q->choices->count();
                     @endphp
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="py-4 px-6">
+                    <tr class="align-top transition-colors hover:bg-rose-50/30">
+                        <td class="px-4 py-4 sm:px-5">
                             <div class="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg font-semibold text-gray-700">
                                 {{ ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration }}
                             </div>
                         </td>
-                        <td class="py-4 px-6">
-                            <div class="max-w-md">
-                                <p class="font-medium text-gray-900 line-clamp-2">{{ $q->question_text ?? '-' }}</p>
+                        <td class="px-4 py-4 sm:px-5">
+                            <div class="max-w-lg">
+                                <p class="whitespace-pre-line break-words text-sm font-semibold leading-6 text-slate-900">{{ $q->question_text ?? '-' }}</p>
                                 @if($q->correct_option_id)
-                                <div class="flex items-center mt-2">
-                                    <i class="fas fa-check-circle text-green-500 text-xs mr-2"></i>
-                                    <span class="text-green-600 text-xs font-medium">Sudah ada jawaban benar</span>
+                                <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Kunci jawaban sudah dipilih</span>
+                                </div>
+                                @else
+                                <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <span>Kunci jawaban belum dipilih</span>
                                 </div>
                                 @endif
                             </div>
                         </td>
-                        <td class="py-4 px-6">
-                            <p class="text-gray-600 text-sm line-clamp-2">{{ $q->question_optional ?? '-' }}</p>
+                        <td class="px-4 py-4 sm:px-5">
+                            <p class="max-w-56 whitespace-pre-line break-words text-sm leading-5 text-slate-600">{{ $q->question_optional ?: 'Tidak ada keterangan' }}</p>
                         </td>
-                        <td class="py-4 px-6">
+                        <td class="px-4 py-4 sm:px-5">
                             @if($hasImage)
-                            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <i class="fas fa-image text-blue-600"></i>
-                            </div>
+                            <span role="img" aria-label="Soal memiliki gambar" title="Soal memiliki gambar" class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-600 ring-1 ring-sky-100 transition hover:bg-sky-100">
+                                <i class="far fa-image text-lg" aria-hidden="true"></i>
+                            </span>
                             @else
-                            <span class="text-gray-400 text-sm">-</span>
+                            <span class="text-xs text-slate-400" title="Soal tanpa gambar">—</span>
                             @endif
                         </td>
-                        <td class="py-4 px-6">
-                            <div class="flex items-center">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                    <i class="fas fa-list-ol mr-1"></i>
-                                    {{ $optionsCount }} opsi
-                                </span>
-                                <button 
-                                    class="ml-3 text-purple-600 hover:text-purple-800 transition-colors"
+                        <td class="px-4 py-4 sm:px-5">
+                            <button type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:border-violet-200 hover:bg-violet-100"
                                     data-modal-toggle="detailModal{{ $q->id }}"
-                                    title="Lihat detail opsi">
-                                    <i class="fas fa-eye"></i>
+                                    aria-label="Lihat detail soal {{ ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration }}"
+                                    title="Lihat detail soal dan opsi jawaban">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+                                    <span>{{ $optionsCount }} opsi</span>
+                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12h15m-6-6 6 6-6 6"/></svg>
                                 </button>
-                            </div>
                         </td>
-                        <td class="py-4 px-6">
-                            <div class="flex items-center space-x-2">
-                                <button 
-                                    class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        <td class="px-4 py-4 sm:px-5">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <button type="button"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
                                     data-modal-toggle="editModal{{ $q->id }}"
-                                    title="Edit pertanyaan">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button 
-                                    class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                    data-modal-toggle="detailModal{{ $q->id }}"
-                                    title="Lihat detail">
-                                    <i class="fas fa-eye"></i>
+                                    aria-label="Edit soal {{ ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration }}"
+                                    title="Edit soal">
+                                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 2.651 2.651M4.5 19.5l4.125-.825L19.02 8.28a1.875 1.875 0 0 0-2.652-2.652L5.973 16.02 5.25 19.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6.75 17.25 10.5"/></svg><span>Edit</span>
                                 </button>
                                 <form 
                                     action="{{ route('question.destroy', [$test->slug, $typeTest->slug, $subTest->slug, $q->id]) }}"
@@ -277,9 +336,9 @@
                                     @method('DELETE')
                                     <button 
                                         type="submit"
-                                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors delete-btn"
-                                        title="Hapus pertanyaan">
-                                        <i class="fas fa-trash"></i>
+                                        class="inline-flex min-h-9 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 delete-btn"
+                                        title="Hapus soal">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M9.75 6.75V4.5h4.5v2.25m-8.25 0 .75 13.5h10.5l.75-13.5M10.125 10.5v6m3.75-6v6"/></svg><span>Hapus</span>
                                     </button>
                                 </form>
                             </div>
@@ -290,15 +349,15 @@
             </table>
         </div>
         @if($questions->hasPages())
-        <div class="px-6 py-4 border-t">
-            <div class="flex flex-col md:flex-row items-center justify-between">
-                <div class="text-sm text-gray-700 mb-4 md:mb-0">
+        <div class="border-t border-slate-100 px-4 py-4 sm:px-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="text-center text-xs text-slate-600 sm:text-left sm:text-sm">
                     Menampilkan <span class="font-medium">{{ $questions->firstItem() }}</span> - 
                     <span class="font-medium">{{ $questions->lastItem() }}</span> dari 
                     <span class="font-medium">{{ $questions->total() }}</span> pertanyaan
                 </div>
                 
-                <nav class="flex items-center space-x-2">
+                <nav aria-label="Navigasi halaman soal" class="flex max-w-full items-center justify-center overflow-x-auto sm:justify-end">
                     {{ $questions->onEachSide(1)->links('vendor.pagination.custom') }}
                 </nav>
             </div>
@@ -308,19 +367,30 @@
     </div>
 </div>
 
-<div id="addModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden modal-animation">
+<div id="addModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-2 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl">
         <form action="{{ route('question.store', [$test->slug, $typeTest->slug, $subTest->slug]) }}" 
-              method="POST" enctype="multipart/form-data" id="createQuestionForm" novalidate>
+              method="POST" enctype="multipart/form-data" id="createQuestionForm" class="flex min-h-0 flex-1 flex-col" novalidate>
             @csrf
-            <div class="px-6 py-4 border-b flex items-center justify-between">
-                <h3 class="text-xl font-bold text-gray-900">Tambah Pertanyaan Baru</h3>
-                <button type="button" class="text-gray-400 hover:text-gray-600 transition-colors" data-modal-close="addModal">
+            <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-4 sm:px-6">
+                <div class="min-w-0">
+                    <p class="text-xs font-bold uppercase tracking-wider text-rose-600">Subtest: {{ $subTest->name }}</p>
+                    <h3 class="mt-1 truncate text-lg font-extrabold text-slate-900 sm:text-xl">Tambah Soal Baru</h3>
+                </div>
+                <button type="button" aria-label="Tutup form tambah soal" class="ml-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" data-modal-close="addModal">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
-            <div class="overflow-y-auto p-6" style="max-height: calc(90vh - 120px);">
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6" style="max-height: calc(94vh - 140px);">
+                <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                    <p class="text-sm font-bold text-slate-800">Cara mengisi</p>
+                    <ol class="mt-2 grid gap-2 text-xs leading-5 text-slate-600 sm:grid-cols-3 sm:text-sm">
+                        <li><span class="mr-1 font-bold text-blue-700">1.</span> Tulis pertanyaan.</li>
+                        <li><span class="mr-1 font-bold text-blue-700">2.</span> Isi minimal dua pilihan.</li>
+                        <li><span class="mr-1 font-bold text-blue-700">3.</span> Pilih satu jawaban benar.</li>
+                    </ol>
+                </div>
                 @if(session('error_type') == 'create')
                     @if($errors->any())
                         <div class="mb-6 p-4 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
@@ -342,8 +412,11 @@
                         </div>
                     @endif
                 @endif
-                <div class="mb-6">
-                    <h4 class="font-semibold text-gray-900 mb-4">Detail Pertanyaan</h4>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div class="mb-4">
+                        <h4 class="font-extrabold text-slate-900">1. Isi pertanyaan</h4>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">Tuliskan soal yang akan dibaca peserta. Keterangan dan gambar bersifat opsional.</p>
+                    </div>
                     <div class="mb-5">
                         <label class="block text-gray-700 text-sm font-medium mb-2 required">
                             Pertanyaan
@@ -420,13 +493,16 @@
                         </div>
                     </div>
                 </div>
-                <div class="mb-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="font-semibold text-gray-900">Opsi Jawaban</h4>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h4 class="font-extrabold text-slate-900">2. Buat pilihan jawaban</h4>
+                            <p class="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">Isi minimal 2 dan maksimal 6 pilihan, lalu tandai satu jawaban yang benar.</p>
+                        </div>
                         <button 
                             type="button" 
                             id="add-option"
-                            class="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all flex items-center text-sm"
+                            class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-rose-700"
                         >
                             <i class="fas fa-plus mr-2"></i> Tambah Opsi
                         </button>
@@ -435,37 +511,35 @@
                     <div id="options-container" class="space-y-4">
                     </div>
                     
-                    <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div class="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 p-4">
                         <div class="flex items-start">
                             <i class="fas fa-info-circle text-yellow-500 mt-1 mr-3"></i>
                             <div>
-                                <p class="text-yellow-800 text-sm font-medium">Tips:</p>
-                                <p class="text-yellow-700 text-xs mt-1">
-                                    • Pastikan minimal ada 2 opsi jawaban<br>
-                                    • Tandai satu opsi sebagai jawaban benar<br>
-                                    • Maksimal 6 opsi jawaban
+                                <p class="text-sm font-bold text-amber-900">Sebelum disimpan</p>
+                                <p class="mt-1 text-xs leading-5 text-amber-800 sm:text-sm">
+                                    Pastikan teks setiap pilihan sudah terisi dan hanya satu pilihan yang ditandai sebagai jawaban benar.
                                 </p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t flex justify-end space-x-3">
+            <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
                 <button 
                     type="button" 
-                    class="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-medium"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 transition hover:bg-slate-50"
                     data-modal-close="addModal"
                 >
                     Batal
                 </button>
                 <button 
                     type="submit" 
-                    class="px-5 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-5 py-2.5 font-bold text-white shadow-sm transition hover:from-rose-700 hover:to-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
                     id="submitBtn"
                 >
                     <span class="flex items-center">
                         <i class="fas fa-save mr-2"></i>
-                        <span>Simpan Pertanyaan</span>
+                        <span>Simpan Soal</span>
                         <span id="loading" class="hidden ml-2">
                             <i class="fas fa-spinner fa-spin"></i>
                         </span>
@@ -477,65 +551,77 @@
 </div>
 
 @foreach ($questions as $q)
-<div id="detailModal{{ $q->id }}" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden modal-animation">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-            <h3 class="text-xl font-bold text-gray-900">Detail Pertanyaan</h3>
-            <button type="button" class="text-gray-400 hover:text-gray-600 transition-colors" data-modal-close="detailModal{{ $q->id }}">
+<div id="detailModal{{ $q->id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-2 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation flex max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
+            <div class="min-w-0">
+                <p class="text-xs font-bold uppercase tracking-wider text-violet-600">Subtest: {{ $subTest->name }}</p>
+                <h3 class="mt-1 text-lg font-extrabold text-slate-900 sm:text-xl">Detail Soal #{{ ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration }}</h3>
+            </div>
+            <button type="button" aria-label="Tutup detail soal" class="ml-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" data-modal-close="detailModal{{ $q->id }}">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         
-        <div class="overflow-y-auto p-6" style="max-height: calc(90vh - 120px);">
-            <div class="mb-6">
-                <h4 class="font-semibold text-gray-900 mb-3">Pertanyaan</h4>
-                <div class="bg-gray-50 rounded-xl p-5">
-                    <p class="text-gray-900 text-lg">{{ $q->question_text ?? '-' }}</p>
+        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6" style="max-height: calc(94vh - 140px);">
+            <section class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <h4 class="text-sm font-extrabold uppercase tracking-wide text-slate-500">Pertanyaan</h4>
+                    @if($q->correct_option_id)
+                        <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800"><i class="fas fa-check-circle"></i> Kunci tersedia</span>
+                    @else
+                        <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800"><i class="fas fa-exclamation-circle"></i> Belum ada kunci</span>
+                    @endif
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <p class="whitespace-pre-line break-words text-base font-medium leading-7 text-slate-900 sm:text-lg">{{ $q->question_text ?? '-' }}</p>
                     @if($q->question_optional)
-                    <p class="text-gray-600 mt-2 text-sm">
-                        <i class="fas fa-info-circle mr-2"></i> {{ $q->question_optional }}
+                    <p class="mt-4 whitespace-pre-line break-words border-t border-slate-100 pt-3 text-sm leading-6 text-slate-600">
+                        <span class="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-400">Keterangan</span>{{ $q->question_optional }}
                     </p>
                     @endif
                 </div>
-            </div>
+            </section>
             
             @if($q->image)
-            <div class="mb-6">
-                <h4 class="font-semibold text-gray-900 mb-3">Gambar Pertanyaan</h4>
-                <div class="border rounded-xl overflow-hidden">
-                    <img src="{{ $q->image }}" alt="Gambar Pertanyaan" class="w-full h-auto">
+            <section class="rounded-2xl border border-slate-200 p-4 sm:p-5">
+                <h4 class="mb-3 text-sm font-extrabold uppercase tracking-wide text-slate-500">Gambar soal</h4>
+                <div class="flex max-h-80 items-center justify-center overflow-hidden rounded-xl bg-slate-50 p-2">
+                    <img src="{{ $q->image }}" alt="Gambar pada soal {{ ($questions->currentPage() - 1) * $questions->perPage() + $loop->iteration }}" class="max-h-72 w-auto max-w-full object-contain">
                 </div>
-            </div>
+            </section>
             @endif
             
-            <div>
-                <h4 class="font-semibold text-gray-900 mb-3">Opsi Jawaban</h4>
+            <section class="rounded-2xl border border-slate-200 p-4 sm:p-5">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                        <h4 class="text-sm font-extrabold uppercase tracking-wide text-slate-500">Pilihan jawaban</h4>
+                        <p class="mt-1 text-xs text-slate-400">Jawaban yang benar ditandai warna hijau.</p>
+                    </div>
+                    <span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700">{{ $q->choices->count() }} opsi</span>
+                </div>
                 <div class="space-y-3">
                     @foreach ($q->choices as $opt)
-                    <div class="border rounded-xl p-4 {{ $q->correct_option_id == $opt->id ? 'border-green-500 bg-green-50' : 'border-gray-200' }}">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center">
-                                <div class="w-8 h-8 {{ $q->correct_option_id == $opt->id ? 'bg-green-600' : 'bg-gray-200' }} rounded-lg flex items-center justify-center mr-3">
-                                    <span class="font-bold text-white">{{ $opt->option_label }}</span>
-                                </div>
-                                <span class="font-medium text-gray-900">{{ $opt->option_text }}</span>
-                            </div>
-                            @if($q->correct_option_id == $opt->id)
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                <i class="fas fa-check mr-2"></i> Jawaban Benar
-                            </span>
-                            @endif
+                    <div class="flex items-start gap-3 rounded-xl border p-3 sm:p-4 {{ $q->correct_option_id == $opt->id ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-white' }}">
+                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl {{ $q->correct_option_id == $opt->id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600' }}">
+                            <span class="font-extrabold">{{ $opt->option_label }}</span>
                         </div>
+                        <span class="min-w-0 flex-1 break-words pt-1 text-sm leading-6 text-slate-800 sm:text-base">{{ $opt->option_text }}</span>
+                        @if($q->correct_option_id == $opt->id)
+                            <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-extrabold text-emerald-800 sm:px-2.5 sm:text-xs">
+                                <i class="fas fa-check"></i><span class="hidden sm:inline">Jawaban benar</span><span class="sm:hidden">Benar</span>
+                            </span>
+                        @endif
                     </div>
                     @endforeach
                 </div>
-            </div>
+            </section>
         </div>
         
-        <div class="px-6 py-4 border-t flex justify-end">
+        <div class="flex shrink-0 justify-end border-t border-slate-100 bg-white px-4 py-3 sm:px-6 sm:py-4">
             <button 
                 type="button" 
-                class="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-medium"
+                class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-100 px-5 py-2.5 font-bold text-slate-700 transition hover:bg-slate-200 sm:w-auto"
                 data-modal-close="detailModal{{ $q->id }}"
             >
                 Tutup
@@ -543,21 +629,28 @@
         </div>
     </div>
 </div>
-<div id="editModal{{ $q->id }}" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden modal-animation">
+<div id="editModal{{ $q->id }}" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-2 backdrop-blur-sm sm:p-4">
+    <div class="modal-animation flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl">
         <form action="{{ route('question.update', [$test->slug, $typeTest->slug, $subTest->slug, $q->id]) }}" 
-              method="POST" enctype="multipart/form-data" id="editQuestionForm{{ $q->id }}" novalidate>
+              method="POST" enctype="multipart/form-data" id="editQuestionForm{{ $q->id }}" class="flex min-h-0 flex-1 flex-col" novalidate>
             @csrf
             @method('PUT')
             
-            <div class="px-6 py-4 border-b flex items-center justify-between">
-                <h3 class="text-xl font-bold text-gray-900">Edit Pertanyaan</h3>
-                <button type="button" class="text-gray-400 hover:text-gray-600 transition-colors" data-modal-close="editModal{{ $q->id }}">
+            <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-4 sm:px-6">
+                <div class="min-w-0">
+                    <p class="text-xs font-bold uppercase tracking-wider text-rose-600">Subtest: {{ $subTest->name }}</p>
+                    <h3 class="mt-1 truncate text-lg font-extrabold text-slate-900 sm:text-xl">Edit Soal</h3>
+                </div>
+                <button type="button" aria-label="Tutup form edit soal" class="ml-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900" data-modal-close="editModal{{ $q->id }}">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
-            <div class="overflow-y-auto p-6" style="max-height: calc(90vh - 120px);">
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-6" style="max-height: calc(94vh - 140px);">
+                <div class="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                    <p class="text-sm font-bold text-slate-800">Periksa tiga bagian sebelum menyimpan</p>
+                    <p class="mt-1 text-xs leading-5 text-slate-600 sm:text-sm">Ubah teks soal, perbarui gambar bila perlu, lalu pastikan pilihan jawaban yang benar sudah ditandai.</p>
+                </div>
                 @if(session('error_type') == 'edit_' . $q->id)
                     @if($errors->any())
                         <div class="mb-6 p-4 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200">
@@ -579,7 +672,12 @@
                         </div>
                     @endif
                 @endif
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div class="mb-4">
+                        <h4 class="font-extrabold text-slate-900">1. Pertanyaan</h4>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">Perbarui teks soal dan keterangan tambahannya.</p>
+                    </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                     <div>
                         <label class="block text-gray-700 text-sm font-medium mb-2 required">
                             Pertanyaan
@@ -626,10 +724,12 @@
                         </p>
                     </div>
                 </div>
-                <div class="mb-6">
-                    <label class="block text-gray-700 text-sm font-medium mb-2">
-                        Gambar Pertanyaan <span class="text-gray-400">(Opsional)</span>
-                    </label>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div class="mb-4">
+                        <h4 class="font-extrabold text-slate-900">2. Gambar <span class="font-medium text-slate-400">(opsional)</span></h4>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">Gambar lama tetap digunakan jika kamu tidak menggantinya.</p>
+                    </div>
                     @if($q->image)
                     <div class="mb-4">
                         <p class="text-sm text-gray-600 mb-2">Gambar saat ini:</p>
@@ -667,62 +767,59 @@
                         </div>
                     </div>
                 </div>
-                <div class="mb-6">
-                    <h4 class="font-semibold text-gray-900 mb-4">Opsi Jawaban</h4>
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div class="mb-4">
+                        <h4 class="font-extrabold text-slate-900">3. Pilihan jawaban</h4>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">Pilih lingkaran di samping satu pilihan untuk menentukan kunci jawaban.</p>
+                    </div>
                     <div class="space-y-4">
                         @foreach ($q->choices as $opt)
-                        <div class="border rounded-xl p-4">
-                            <div class="flex items-center justify-between mb-3">
-                                <label class="font-medium text-gray-900">Pilihan {{ $opt->option_label }}</label>
-                                @if($q->correct_option_id == $opt->id)
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    <i class="fas fa-check mr-2"></i> Jawaban Benar Saat Ini
-                                </span>
-                                @endif
+                        <div class="edit-option-item rounded-xl border {{ $q->correct_option_id == $opt->id ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 bg-slate-50/60' }} p-4 transition-colors">
+                            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <label class="font-bold text-slate-800">Pilihan {{ $opt->option_label }}</label>
                             </div>
                             <input 
                                 type="text" 
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all mb-3"
+                                class="mb-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
                                 name="options[{{ $opt->option_label }}]"
                                 value="{{ old('options.'.$opt->option_label, session('error_type') == 'edit_' . $q->id ? (session('old_input.options.'.$opt->option_label) ?? $opt->option_text) : $opt->option_text) }}" 
                                 required
                                 maxlength="255"
                             >
-                            <div class="flex items-center">
+                            <label class="flex min-h-11 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 py-2 transition hover:border-emerald-300 hover:bg-emerald-50/60">
                                 <input 
                                     type="radio" 
                                     name="correct" 
                                     id="correct_{{ $q->id }}_{{ $opt->option_label }}"
                                     value="{{ $opt->option_label }}"
-                                    class="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"
+                                    class="edit-correct-choice h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                    onchange="highlightCorrectChoice(this)"
                                     {{ $q->correct_option_id == $opt->id ? 'checked' : '' }}
                                     required
                                 >
-                                <label for="correct_{{ $q->id }}_{{ $opt->option_label }}" class="ml-2 text-gray-700 text-sm">
-                                    Tandai sebagai jawaban benar
-                                </label>
-                            </div>
+                                <span class="ml-2 text-sm font-semibold text-slate-700">Jadikan jawaban benar</span>
+                            </label>
                         </div>
                         @endforeach
                     </div>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t flex justify-end space-x-3">
+            <div class="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
                 <button 
                     type="button" 
-                    class="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-medium"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 transition hover:bg-slate-50"
                     data-modal-close="editModal{{ $q->id }}"
                 >
                     Batal
                 </button>
                 <button 
                     type="submit" 
-                    class="px-5 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-5 py-2.5 font-bold text-white shadow-sm transition hover:from-rose-700 hover:to-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
                     id="editSubmitBtn{{ $q->id }}"
                 >
                     <span class="flex items-center">
                         <i class="fas fa-save mr-2"></i>
-                        <span>Update Pertanyaan</span>
+                        <span>Simpan Perubahan</span>
                         <span id="editLoading{{ $q->id }}" class="hidden ml-2">
                             <i class="fas fa-spinner fa-spin"></i>
                         </span>
@@ -838,6 +935,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filterToggle && filterForm) {
         filterToggle.addEventListener('click', function() {
             filterForm.classList.toggle('hidden');
+            this.setAttribute('aria-expanded', String(!filterForm.classList.contains('hidden')));
         });
     }
     function setupCharCounter(textarea, counterSpan) {
@@ -877,6 +975,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         addOption('A');
         addOption('B');
+
+        const updateOptionSelection = () => {
+            optionsContainer.querySelectorAll('.option-item').forEach(item => {
+                const selected = item.querySelector('input[type="radio"]')?.checked;
+                item.classList.toggle('border-emerald-300', selected);
+                item.classList.toggle('bg-emerald-50/60', selected);
+                item.classList.toggle('border-slate-200', !selected);
+                item.classList.toggle('bg-slate-50/60', !selected);
+            });
+        };
+        updateOptionSelection();
+        optionsContainer.addEventListener('change', event => {
+            if (event.target.matches('input[type="radio"][name="correct"]')) updateOptionSelection();
+        });
         
         nextLabel = 'C'; 
         
@@ -905,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         firstRadio.checked = true;
                     }
                 }
+                updateOptionSelection();
             }
         });
     }
@@ -1062,39 +1175,53 @@ function addOption(label) {
     if (!optionsContainer) return;
     
     const optionItem = document.createElement('div');
-    optionItem.className = 'border rounded-xl p-4 option-item';
+    optionItem.className = 'option-item rounded-xl border border-slate-200 bg-slate-50/60 p-4 transition-colors';
     optionItem.dataset.label = label;
     optionItem.innerHTML = `
-        <div class="flex items-center justify-between mb-3">
-            <label class="font-medium text-gray-900">Pilihan ${label}</label>
-            <button type="button" class="text-red-600 hover:text-red-800 remove-option">
-                <i class="fas fa-times"></i>
+        <div class="mb-3 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sm font-extrabold text-slate-700 shadow-sm ring-1 ring-slate-200">${label}</span>
+                <label class="font-bold text-slate-800">Pilihan ${label}</label>
+            </div>
+            <button type="button" aria-label="Hapus pilihan ${label}" title="Hapus pilihan ${label}" class="remove-option flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600">
+                <i class="fas fa-trash-alt"></i>
             </button>
         </div>
         <input 
             type="text" 
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all mb-3"
+            class="mb-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm transition focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
             name="options[${label}]"
             placeholder="Masukkan teks opsi ${label}"
             required
             maxlength="255"
         >
-        <div class="flex items-center">
+        <label class="flex min-h-11 cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 py-2 transition hover:border-emerald-300 hover:bg-emerald-50/60">
             <input 
                 type="radio" 
                 name="correct" 
                 value="${label}"
-                class="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"
+                class="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 ${label === 'A' ? 'checked' : ''}
                 required
             >
-            <label class="ml-2 text-gray-700 text-sm">
-                Tandai sebagai jawaban benar
-            </label>
-        </div>
+            <span class="ml-2 text-sm font-semibold text-slate-700">Jadikan jawaban benar</span>
+        </label>
     `;
     
     optionsContainer.appendChild(optionItem);
+}
+
+function highlightCorrectChoice(radio) {
+    const form = radio.closest('form');
+    if (!form) return;
+
+    form.querySelectorAll('.edit-option-item').forEach(item => {
+        const selected = item.querySelector('input[type="radio"]')?.checked;
+        item.classList.toggle('border-emerald-300', selected);
+        item.classList.toggle('bg-emerald-50/60', selected);
+        item.classList.toggle('border-slate-200', !selected);
+        item.classList.toggle('bg-slate-50/60', !selected);
+    });
 }
 
 function previewImage(event) {

@@ -1,20 +1,20 @@
 @extends('layouts.sidebar')
 
 @section('content')
-<div class="max-w-4xl mx-auto">
+<div class="mx-auto max-w-4xl space-y-6 px-3 py-5 sm:px-6 sm:py-7">
     <div class="mb-8">
         <a href="{{ route('admin-users.index') }}" 
            class="inline-flex items-center text-red-600 hover:text-red-700 mb-4">
             <i class="fas fa-arrow-left mr-2"></i> Kembali ke Daftar
         </a>
-        <h1 class="text-3xl font-bold text-gray-900">
+        <h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">
             <i class="fas fa-user-edit text-red-600 mr-3"></i>Edit Admin
         </h1>
         <p class="text-gray-600 mt-2">Perbarui data administrator {{ $admin_user->name }}</p>
     </div>
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div class="px-6 py-4 bg-gradient-to-r from-red-600 to-red-700">
-            <div class="flex justify-between items-center">
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="bg-gradient-to-r from-red-600 to-red-700 px-4 py-4 sm:px-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-xl font-bold text-white">
                     <i class="fas fa-user-cog mr-2"></i>Form Edit Administrator
                 </h2>
@@ -24,7 +24,7 @@
             </div>
         </div>
         
-        <div class="p-6">
+        <div class="p-4 sm:p-6">
             <form action="{{ route('admin-users.update', $admin_user->id) }}" method="POST" id="editForm">
                 @csrf
                 @method('PUT')

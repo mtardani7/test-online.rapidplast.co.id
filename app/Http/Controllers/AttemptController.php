@@ -17,6 +17,7 @@ class AttemptController extends Controller
     {
         $query = Attempt::with([
             'user',
+            'tests',
             'typeTests.subAnswers.subTest',
             'typeTests.typeTest',
         ]);

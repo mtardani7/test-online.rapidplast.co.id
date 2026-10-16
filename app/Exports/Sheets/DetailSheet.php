@@ -2,66 +2,101 @@
 
 namespace App\Exports\Sheets;
 
-use App\Models\User;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\{
     FromArray,
+    ShouldAutoSize,
+    WithEvents,
     WithHeadings,
     WithStyles,
-    ShouldAutoSize
+    WithTitle
 };
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Maatwebsite\Excel\Events\AfterSheet;
 
-class DetailSheet implements FromArray, WithHeadings, WithStyles, ShouldAutoSize
+class DetailSheet implements FromArray, WithHeadings, WithStyles, ShouldAutoSize, WithEvents, WithTitle
 {
+    protected Collection $users;
+    protected ?array $rows = null;
+
+    public function __construct($users)
+    {
+        $this->users = collect($users);
+    }
+
     public function array(): array
     {
-        $users = User::whereDoesntHave('roles', function ($q) {
-            $q->where('name', 'admin');
-        })
-        ->with('attempts.tests')
-        ->get();
+        if ($this->rows !== null) {
+            return $this->rows;
+        }
 
         $rows = [];
-        $no   = 1;
 
-        foreach ($users as $user) {
-            foreach ($user->attempts->sortBy('test_id') as $attempt) {
-
-                if (!$attempt->test) continue;
+        foreach ($this->users as $user) {
+            foreach ($user->attempts->sortByDesc('created_at') as $attempt) {
+                $test = $attempt->tests;
+                if (!$test) {
+                    continue;
+                }
 
                 $rows[] = [
-                    $no++,
+                    count($rows) + 1,
                     $user->name,
-                    $attempt->test->name,
-                    $attempt->test->type ?? '-',
+                    $user->email,
+                    $test->name,
+                    $test->type ?? '-',
                     $attempt->score,
-                    $attempt->created_at->format('Y-m-d'),
+                    $attempt->iq_score ?? '-',
+                    $attempt->iq_category ?? '-',
+                    $attempt->created_at?->format('Y-m-d H:i:s') ?? '-',
                 ];
             }
         }
 
-        return $rows;
+        return $this->rows = $rows;
     }
 
     public function headings(): array
     {
         return [
             'No',
-            'Nama',
-            'Nama Test',
-            'Tipe Test',
-            'Score',
-            'Tanggal Test',
+            'Nama Kandidat',
+            'Email',
+            'Nama Tes',
+            'Tipe Tes',
+            'Skor',
+            'IQ',
+            'Kategori IQ',
+            'Waktu Pengerjaan',
         ];
     }
 
-    public function styles(Worksheet $sheet)
+    public function styles(Worksheet $sheet): array
     {
         return [
             1 => [
-                'font' => ['bold' => true],
-                'alignment' => ['horizontal' => 'center'],
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '9F1239']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ],
         ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event): void {
+                $sheet = $event->sheet->getDelegate();
+                $sheet->freezePane('A2');
+                $sheet->setAutoFilter('A1:' . $sheet->getHighestColumn() . $sheet->getHighestRow());
+            },
+        ];
+    }
+
+    public function title(): string
+    {
+        return 'Detail Attempt';
     }
 }

@@ -1,7 +1,14 @@
 @extends('layouts.sidebar')
 
+@section('page-title', 'Manajemen Range')
+@section('current-page', 'Range Instruksi')
 @section('content')
-<div class="px-6 py-6">
+<div class="space-y-5 sm:space-y-7">
+    @php
+        $questionPositions = $numberedQuestions->mapWithKeys(function ($question) {
+            return [$question->id => $question->display_number];
+        });
+    @endphp
     @if(session('success'))
         <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg">
             {{ session('success') }}
@@ -18,142 +25,124 @@
         </div>
     @endif
 
-    <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 class="text-lg font-semibold text-blue-800 mb-2 flex items-center gap-2">
-            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-            </svg>
-            Panduan Penggunaan Range Instruksi
-        </h3>
-        <ul class="text-blue-700 space-y-1">
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Setiap range instruksi menentukan kelompok soal yang akan ditampilkan instruksinya</span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Soal yang sudah digunakan dalam range lain <span class="font-semibold text-red-600">tidak bisa dipilih</span> (kecuali pada range yang sedang diedit)</span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Start soal harus lebih kecil atau sama dengan end soal</span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Order number harus unik untuk setiap range</span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Range yang nonaktif tidak akan ditampilkan instruksinya kepada peserta tes</span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Total soal yang tersedia: <span class="font-bold">{{ $numberedQuestions->count() }} soal</span></span>
-            </li>
-            <li class="flex items-start gap-2">
-                <span class="mt-1">•</span>
-                <span>Soal yang sudah digunakan: 
-                    <span class="font-bold {{ count($usedQuestionNumbers) == $numberedQuestions->count() ? 'text-red-600' : 'text-blue-600' }}">
-                        {{ count($usedQuestionNumbers) }} dari {{ $numberedQuestions->count() }}
-                    </span>
-                </span>
-            </li>
-        </ul>
-    </div>
-
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">
-                Range Instruksi - {{ $subTest->name }}
-            </h1>
-            <p class="text-gray-600 mt-1">
-                Subtest: {{ $subTest->name }} • Total Range: {{ $ranges->count() }}
-            </p>
+    <details class="group rounded-2xl border border-blue-100 bg-blue-50/70 p-4 sm:p-5">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-blue-900">
+            <span class="flex items-center gap-2 font-semibold">
+                <svg class="h-5 w-5 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                </svg>
+                Panduan mengatur range
+            </span>
+            <span class="text-sm text-blue-700 group-open:hidden">Lihat aturan</span>
+            <span class="hidden text-sm text-blue-700 group-open:inline">Tutup</span>
+        </summary>
+        <div class="mt-4 grid gap-3 border-t border-blue-100 pt-4 text-sm text-blue-900 sm:grid-cols-2 lg:grid-cols-3">
+            <p><strong>1.</strong> Range menentukan kelompok soal yang menerima instruksi.</p>
+            <p><strong>2.</strong> Soal yang sudah dipakai tidak bisa dipilih lagi.</p>
+            <p><strong>3.</strong> Soal awal harus sama dengan atau sebelum soal akhir.</p>
+            <p><strong>4.</strong> Nomor urut range harus unik.</p>
+            <p><strong>5.</strong> Range nonaktif tidak tampil kepada peserta.</p>
         </div>
+    </details>
 
-        <button 
-            class="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition flex items-center gap-2"
-            data-modal-open="addRangeModal">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Tambah Range
-        </button>
-    </div>
-    
-    <a href="{{ route('sub-test.ranges.preview', [$test->slug, $typeTest->slug, $subTest->slug]) }}" 
-       class="px-4 py-2 mb-4 inline-flex items-center gap-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border border-gray-300">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
-        Preview Range
-    </a>
-    
-    <div class="bg-white shadow rounded-xl overflow-hidden border border-gray-200">
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div class="min-w-0">
+                <nav class="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 sm:text-sm" aria-label="Breadcrumb">
+                    <a href="{{ route('test.index') }}" class="hover:text-blue-700">Tes</a>
+                    <span aria-hidden="true">/</span>
+                    <a href="{{ route('type-test.index', $test->slug) }}" class="hover:text-blue-700">{{ $typeTest->name }}</a>
+                    <span aria-hidden="true">/</span>
+                    <a href="{{ route('sub-test.index', [$test->slug, $typeTest->slug]) }}" class="hover:text-blue-700">{{ $subTest->name }}</a>
+                    <span aria-hidden="true">/</span>
+                    <span class="text-slate-700">Range</span>
+                </nav>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Range instruksi</h1>
+                <p class="mt-1 text-sm text-slate-600 sm:text-base">Atur kelompok soal dan urutan instruksi untuk {{ $subTest->name }}.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <a href="{{ route('sub-test.ranges.preview', [$test->slug, $typeTest->slug, $subTest->slug]) }}"
+                   class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" />
+                        <circle cx="12" cy="12" r="3" stroke-width="2" />
+                    </svg>
+                    Preview
+                </a>
+                <button type="button" data-modal-open="addRangeModal"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5" />
+                    </svg>
+                    Tambah range
+                </button>
+            </div>
+        </div>
+        <div class="mt-6 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total soal</p>
+                <p class="mt-1 text-2xl font-bold text-slate-900">{{ $numberedQuestions->count() }}</p>
+            </div>
+            <div class="rounded-xl bg-blue-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-blue-700">Soal terpakai</p>
+                <p class="mt-1 text-2xl font-bold text-blue-900">{{ count($usedQuestionNumbers) }} <span class="text-sm font-medium text-blue-700">/ {{ $numberedQuestions->count() }}</span></p>
+            </div>
+            <div class="rounded-xl bg-violet-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Jumlah range</p>
+                <p class="mt-1 text-2xl font-bold text-violet-900">{{ $ranges->count() }}</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-            <table class="w-full">
+            <table class="w-full min-w-[340px]">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">#</th>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Start Soal</th>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">End Soal</th>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Jumlah Soal</th>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Order</th>
-                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                        <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Aksi</th>
+                        <th class="px-2 py-3 text-left text-xs font-semibold text-slate-600 sm:px-4 sm:text-sm">#</th>
+                        <th class="px-2 py-3 text-left text-xs font-semibold text-slate-600 sm:px-4 sm:text-sm">Rentang</th>
+                        <th class="hidden px-4 py-3 text-left text-sm font-semibold text-slate-600 sm:table-cell">Jumlah</th>
+                        <th class="hidden px-4 py-3 text-left text-sm font-semibold text-slate-600 sm:table-cell">Urutan</th>
+                        <th class="px-2 py-3 text-left text-xs font-semibold text-slate-600 sm:px-4 sm:text-sm">Status</th>
+                        <th class="px-2 py-3 text-right text-xs font-semibold text-slate-600 sm:px-4 sm:text-sm">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @forelse($ranges as $range)
                     @php
-                        $startQuestion = \App\Models\Questions::find($range->start_number);
-                        $endQuestion = \App\Models\Questions::find($range->end_number);
-                        $questions = \App\Models\Questions::where('sub_tests_id', $subTest->id)
-                            ->orderBy('id', 'asc')
-                            ->get();
-                        $startIndex = $questions->search(function($item) use ($startQuestion) {
-                            return $item->id == $startQuestion->id;
-                        });
-                        $endIndex = $questions->search(function($item) use ($endQuestion) {
-                            return $item->id == $endQuestion->id;
-                        });
+                        $startIndex = ($questionPositions->get($range->start_number) ?? 1) - 1;
+                        $endIndex = ($questionPositions->get($range->end_number) ?? 1) - 1;
                         $questionCount = ($endIndex !== false && $startIndex !== false) ? ($endIndex - $startIndex + 1) : 0;
                     @endphp
-                    <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 text-gray-700 font-medium">{{ $loop->iteration }}</td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">Soal {{ $startIndex + 1 }}</span>
-                                <span class="text-gray-500 text-sm">(ID: {{ $range->start_number }})</span>
+                    <tr class="transition-colors hover:bg-slate-50">
+                        <td class="px-2 py-3 font-semibold text-slate-500 sm:px-4 sm:py-4">{{ $loop->iteration }}</td>
+                        <td class="px-2 py-3 sm:px-4 sm:py-4">
+                            <div class="flex items-center gap-1.5 sm:gap-2">
+                                <span class="rounded-lg bg-blue-50 px-2 py-1.5 text-xs font-semibold text-blue-700 sm:px-3 sm:py-2 sm:text-sm">{{ $startIndex + 1 }}</span>
+                                <svg class="h-3.5 w-3.5 shrink-0 text-slate-400 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-6-6 6 6-6 6" /></svg>
+                                <span class="rounded-lg bg-blue-50 px-2 py-1.5 text-xs font-semibold text-blue-700 sm:px-3 sm:py-2 sm:text-sm">{{ $endIndex + 1 }}</span>
                             </div>
                         </td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">Soal {{ $endIndex + 1 }}</span>
-                                <span class="text-gray-500 text-sm">(ID: {{ $range->end_number }})</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4">
+                        <td class="hidden px-4 py-4 sm:table-cell">
                             <span class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full font-medium">
                                 {{ $questionCount }} soal
                             </span>
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="hidden px-4 py-4 sm:table-cell">
                             <span class="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full font-medium">
                                 #{{ $range->order_number }}
                             </span>
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-2 py-3 sm:px-4 sm:py-4">
                             @if ($range->is_active)
-                                <span class="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1 w-fit">
+                                <span class="px-2 py-1 text-[11px] bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1 w-fit sm:px-3 sm:text-xs">
                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                                     </svg>
                                     Aktif
                                 </span>
                             @else
-                                <span class="px-3 py-1 text-xs bg-gray-100 text-gray-500 rounded-full font-medium flex items-center gap-1 w-fit">
+                                <span class="px-2 py-1 text-[11px] bg-gray-100 text-gray-500 rounded-full font-medium flex items-center gap-1 w-fit sm:px-3 sm:text-xs">
                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
                                     </svg>
@@ -161,36 +150,36 @@
                                 </span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 text-right space-x-2">
-                            <button 
-                                class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 inline-flex"
+                        <td class="px-2 py-3 text-right sm:px-4 sm:py-4 sm:space-x-2">
+                            <button type="button" aria-label="Edit range {{ $range->order_number }}" title="Edit range"
+                                class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 data-modal-open="editRangeModal{{ $range->id }}"
                                 onclick="loadEditModalData({{ $range->id }})">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
-                                Edit
+                                <span class="hidden sm:inline">Edit</span>
                             </button>
 
                             <form action="{{ route('instruction-range.destroy', [$test->slug, $typeTest->slug, $subTest->slug, $range->id]) }}"
                                   method="POST" class="inline">
                                 @csrf
                                 @method('DELETE')
-                                <button 
+                                <button type="submit" aria-label="Hapus range {{ $range->order_number }}" title="Hapus range"
                                     onclick="return confirm('Yakin ingin menghapus range ini?')"
-                                    class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2 inline-flex">
+                                    class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-500 sm:px-3">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                    Hapus
+                                    <span class="hidden sm:inline">Hapus</span>
                                 </button>
                             </form>
                         </td>
                     </tr>
 
                     <div id="editRangeModal{{ $range->id }}" 
-                         class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-                        <div class="bg-white rounded-xl w-full max-w-lg shadow-lg max-h-[90vh] overflow-y-auto">
+                         class="hidden fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4">
+                        <div class="my-auto max-h-[96vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[90vh]">
                             <form action="{{ route('instruction-range.update', [$test->slug, $typeTest->slug, $subTest->slug, $range->id]) }}" method="POST" id="editForm{{ $range->id }}">
                                 @csrf
                                 @method('PUT')
@@ -203,7 +192,7 @@
                                     </h2>
                                     <p class="text-gray-600 text-sm mt-1">ID Range: {{ $range->id }} • Order: {{ $range->order_number }}</p>
                                 </div>
-                                <div class="p-6 space-y-6">
+                                <div class="space-y-5 p-4 sm:space-y-6 sm:p-6">
                                     <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
                                         <h4 class="text-sm font-semibold text-blue-800 mb-2">Range Saat Ini:</h4>
                                         <div class="grid grid-cols-2 gap-3">
@@ -320,15 +309,15 @@
                                     </div>
                                 </div>
 
-                                <div class="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3 rounded-b-xl">
+                                <div class="flex flex-col-reverse gap-2 border-t bg-gray-50 p-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
                                     <button type="button" 
-                                        class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                                        class="min-h-11 rounded-xl border border-gray-300 px-5 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
                                         data-modal-close="editRangeModal{{ $range->id }}">
                                         Batal
                                     </button>
 
                                     <button type="submit" 
-                                        class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center gap-2">
+                                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                         </svg>
@@ -341,7 +330,7 @@
 
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center">
+                        <td colspan="6" class="px-6 py-8 text-center">
                             <div class="flex flex-col items-center justify-center text-gray-400">
                                 <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -359,8 +348,8 @@
 </div>
 
 <div id="addRangeModal"
-     class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-lg shadow-lg max-h-[90vh] overflow-y-auto">
+     class="hidden fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4">
+    <div class="my-auto max-h-[96vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl sm:max-h-[90vh]">
         <form action="{{ route('instruction-range.store', [$test->slug, $typeTest->slug, $subTest->slug]) }}" method="POST" id="addRangeForm">
             @csrf
             <div class="px-6 py-4 border-b bg-gray-50 rounded-t-xl">
@@ -372,7 +361,7 @@
                 </h2>
                 <p class="text-gray-600 text-sm mt-1">Buat range instruksi baru untuk subtest {{ $subTest->name }}</p>
             </div>
-            <div class="p-6 space-y-6">
+            <div class="space-y-5 p-4 sm:space-y-6 sm:p-6">
                 <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <h4 class="text-sm font-semibold text-blue-800 mb-2">Ketersediaan Soal:</h4>
                     <div class="grid grid-cols-2 gap-3">
@@ -501,15 +490,15 @@
                 </div>
             </div>
 
-            <div class="px-6 py-4 border-t bg-gray-50 flex justify-end gap-3 rounded-b-xl">
+            <div class="flex flex-col-reverse gap-2 border-t bg-gray-50 p-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
                 <button type="button" 
-                    class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                    class="min-h-11 rounded-xl border border-gray-300 px-5 py-2 font-medium text-gray-700 transition hover:bg-gray-50"
                     data-modal-close="addRangeModal">
                     Batal
                 </button>
 
                 <button type="submit" 
-                    class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium flex items-center gap-2">
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 font-medium text-white transition hover:bg-blue-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>

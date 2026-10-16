@@ -1,17 +1,50 @@
 @extends('layouts.sidebar')
 
+@section('page-title', 'Hasil Tes')
+@section('current-page', 'Hasil Tes')
 @section('content')
-<div class="p-6">
-    <div class="mb-8">
-        <div class="flex items-center justify-between">
+@php
+    $pageAttempts = $users->getCollection()->sum(fn ($user) => $user->attempts->count());
+    $iqCandidates = $users->getCollection()->filter(fn ($user) => $user->iqData['test_count'] > 0);
+    $pageAverageIq = $iqCandidates->isNotEmpty()
+        ? round($iqCandidates->avg(fn ($user) => $user->iqData['average_iq']))
+        : null;
+@endphp
+<div class="space-y-6">
+    <section class="overflow-hidden rounded-2xl bg-gradient-to-br from-rose-800 via-rose-700 to-red-600 p-5 text-white shadow-lg sm:p-7">
+        <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">Laporan Hasil Test</h1>
-                <p class="text-gray-600 mt-1">Ringkasan hasil test semua kandidat</p>
+                <p class="text-sm font-semibold text-rose-100">Pemantauan kandidat</p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Hasil tes</h1>
+                <p class="mt-2 max-w-2xl text-sm text-rose-100 sm:text-base">Cari kandidat, tinjau skor dan detail attempt, lalu unduh laporan sesuai filter yang aktif.</p>
+            </div>
+            <a href="{{ route('admin.total-test.export') }}?{{ http_build_query(request()->except(['page', 'per_page'])) }}"
+               class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-rose-800 shadow-sm transition hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-rose-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0 4-4m-4 4-4-4m-3 8h14" /></svg>
+                Unduh Excel
+            </a>
+        </div>
+        <div class="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div class="rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                <p class="text-xs font-medium text-rose-100">Total kandidat</p>
+                <p class="mt-1 text-2xl font-bold">{{ number_format($users->total(), 0, ',', '.') }}</p>
+            </div>
+            <div class="rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                <p class="text-xs font-medium text-rose-100">Attempt di halaman ini</p>
+                <p class="mt-1 text-2xl font-bold">{{ number_format($pageAttempts, 0, ',', '.') }}</p>
+            </div>
+            <div class="rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                <p class="text-xs font-medium text-rose-100">Rata-rata IQ TPA di halaman ini</p>
+                <p class="mt-1 text-2xl font-bold">{{ $pageAverageIq ?? '—' }}</p>
+            </div>
+            <div class="rounded-xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                <p class="text-xs font-medium text-rose-100">Halaman</p>
+                <p class="mt-1 text-2xl font-bold">{{ $users->currentPage() }} <span class="text-sm font-medium text-rose-100">/ {{ $users->lastPage() }}</span></p>
             </div>
         </div>
-    </div>
+    </section>
     <form method="GET" action="{{ route('admin.total-test.index') }}" id="filterForm" class="mb-4">
-        <div class="bg-white rounded-2xl shadow-md p-5 mb-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div class="flex-1">
                     <div class="relative">
@@ -28,21 +61,21 @@
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-3">
-                    <button type="button" id="filterBtn" class="px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all flex items-center">
+                <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
+                    <button type="button" id="filterBtn" aria-controls="filterOptions" aria-expanded="{{ request()->hasAny(['q','test_type','per_page','start_date','end_date']) ? 'true' : 'false' }}" class="min-h-11 rounded-xl border border-slate-200 px-4 py-3 text-slate-700 transition hover:bg-slate-50 flex items-center">
                         <i class="fas fa-filter mr-2"></i> Filter
                     </button>
-                    <button type="submit" class="px-4 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all flex items-center">
+                    <button type="submit" class="min-h-11 rounded-xl bg-rose-700 px-4 py-3 text-white transition hover:bg-rose-800 flex items-center">
                         <i class="fas fa-search mr-2"></i> Cari
                     </button>
-                    <a href="{{ route('admin.total-test.index') }}" class="px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all flex items-center">
+                    <a href="{{ route('admin.total-test.index') }}" class="min-h-11 rounded-xl border border-slate-200 px-4 py-3 text-slate-700 transition hover:bg-slate-50 flex items-center">
                         <i class="fas fa-redo mr-2"></i> Reset
                     </a>
                 </div>
             </div>
 
             <div id="filterOptions" class="{{ request()->hasAny(['q','test_type','per_page','start_date','end_date']) ? '' : 'hidden' }} mt-4 pt-4 border-t border-gray-200">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                     @php
                         $types = $tests->pluck('type')->filter()->unique()->values();
                     @endphp
@@ -77,7 +110,7 @@
                         </select>
                     </div>
 
-                    <div class="md:col-span-4 flex justify-end space-x-2">
+                    <div class="flex justify-end gap-2 md:col-span-2 xl:col-span-4">
                         <button type="button" onclick="resetFilters()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                             Reset Filter
                         </button>
@@ -139,57 +172,60 @@
     </div>
     @endif
 
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-        <div class="px-6 py-4 border-b bg-gray-50">
-            <h2 class="text-lg font-semibold text-gray-900">Daftar Kandidat</h2>
-            <p class="text-gray-500 text-sm mt-1">Klik nama kandidat untuk melihat detail</p>
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-1 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">Daftar kandidat</h2>
+                <p class="mt-1 text-sm text-slate-500">Pilih satu kandidat untuk membuka ringkasan dan detail hasil tes.</p>
+            </div>
+            <span class="text-sm font-medium text-slate-500">{{ number_format($users->total(), 0, ',', '.') }} kandidat ditemukan</span>
         </div>
         <div class="divide-y divide-gray-100">
             @forelse($users as $user)
             <div class="accordion-item">
-                <div class="accordion-header p-5 hover:bg-gray-50 cursor-pointer transition-colors duration-200" 
-                     onclick="toggleAccordion('user-{{ $user->id }}')">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-white font-semibold">
+                <button type="button" class="accordion-header w-full p-4 text-left transition-colors duration-200 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-500 sm:p-5"
+                     aria-controls="user-{{ $user->id }}" aria-expanded="false" onclick="toggleAccordion('user-{{ $user->id }}')">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 font-semibold text-rose-800">
                                 {{ strtoupper(substr($user->name, 0, 1)) }}
                             </div>
-                            <div>
-                                <h3 class="font-semibold text-gray-900">{{ $user->name }}</h3>
-                                <p class="text-gray-500 text-sm">{{ $user->email }}</p>
+                            <div class="min-w-0">
+                                <h3 class="truncate font-semibold text-slate-900">{{ $user->name }}</h3>
+                                <p class="truncate text-sm text-slate-500">{{ $user->email }}</p>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-4">
+                        <div class="flex items-center justify-between gap-3 sm:justify-end sm:gap-5">
                             @if($user->iqData['test_count'] > 0)
-                            <div class="text-center">
-                                <div class="flex items-center space-x-2">
-                                    <span class="text-lg font-bold text-gray-900">{{ $user->iqData['average_iq'] }}</span>
-                                    <span class="px-2 py-1 rounded text-xs font-semibold text-white bg-gradient-to-r {{ App\Http\Controllers\Admin\TotalTestController::getIQCategoryColor($user->iqData['category']) }}">
+                            <div class="min-w-0 text-left sm:text-right">
+                                <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                                    <span class="text-lg font-bold text-slate-900">{{ $user->iqData['average_iq'] }}</span>
+                                    <span class="rounded-full bg-gradient-to-r px-2.5 py-1 text-xs font-semibold text-white {{ App\Http\Controllers\Admin\TotalTestController::getIQCategoryColor($user->iqData['category']) }}">
                                         {{ $user->iqData['category'] }}
                                     </span>
                                 </div>
-                                <p class="text-gray-500 text-xs mt-1">IQ TPA</p>
+                                <p class="mt-0.5 text-xs text-slate-500">Rata-rata IQ TPA</p>
                             </div>
                             @endif
-                            <div class="text-center">
-                                <div class="text-lg font-bold text-red-600">
+                            <div class="min-w-[4.5rem] text-right sm:text-center">
+                                <div class="text-lg font-bold text-rose-700">
                                     {{ $user->attempts->count() }}
                                 </div>
-                                <p class="text-gray-500 text-xs mt-1">Test</p>
+                                <p class="mt-0.5 text-xs text-slate-500">Attempt</p>
                             </div>
-                            <div class="text-gray-400 ml-2">
-                                <i class="fas fa-chevron-down accordion-icon transition-transform duration-300" id="icon-user-{{ $user->id }}"></i>
+                            <div class="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                <svg class="accordion-icon h-4 w-4 transition-transform duration-300" id="icon-user-{{ $user->id }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6" /></svg>
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-4 mt-3 text-sm">
-                        <div class="flex items-center">
-                            <i class="fas fa-calendar-alt text-gray-400 mr-1"></i>
-                            <span class="text-gray-600">Bergabung {{ $user->created_at->format('d M Y') }}</span>
+                    <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 sm:ml-14 sm:text-sm">
+                        <div class="flex items-center gap-1.5">
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 3.75v2.5m8-2.5v2.5M4.75 9h14.5M6.5 5.25h11A1.75 1.75 0 0 1 19.25 7v11A1.75 1.75 0 0 1 17.5 19.75h-11A1.75 1.75 0 0 1 4.75 18V7A1.75 1.75 0 0 1 6.5 5.25Z" /></svg>
+                            <span>Bergabung {{ $user->created_at->format('d M Y') }}</span>
                         </div>
-                        <div class="flex items-center">
-                            <i class="fas fa-chart-bar text-gray-400 mr-1"></i>
-                            <span class="text-gray-600">
+                        <div class="flex items-center gap-1.5">
+                            <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.5 19.5V12m5 7.5V5m5 14.5v-4m5 4V8" /></svg>
+                            <span class="text-slate-600">
                             @php
                                 $score = $user->attempts
                                     ->sortByDesc('created_at')
@@ -201,13 +237,16 @@
                             </span>
                         </div>
                     </div>
-                </div>
+                </button>
                 <div id="user-{{ $user->id }}" class="accordion-content hidden">
-                    <div class="p-5 bg-gray-50 border-t">
+                    <div class="border-t border-slate-200 bg-slate-50 p-4 sm:p-6">
                         @if($user->iqData['test_count'] > 0)
-                        <div class="mb-6">
-                            <div class="flex items-center justify-between mb-3">
-                                <h3 class="font-semibold text-gray-900">Analisis IQ TPA</h3>
+                        <div class="mb-5 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm sm:p-5">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h3 class="font-semibold text-slate-900">Ringkasan IQ TPA</h3>
+                                    <p class="mt-1 text-xs text-slate-500">Dihitung dari attempt TPA dalam rentang filter.</p>
+                                </div>
                                 <div class="flex items-center space-x-2">
                                     <span class="text-lg font-bold text-gray-900">{{ $user->iqData['average_iq'] }}</span>
                                     <span class="px-3 py-1 rounded-full text-xs font-semibold text-white bg-gradient-to-r {{ App\Http\Controllers\Admin\TotalTestController::getIQCategoryColor($user->iqData['category']) }}">
@@ -224,26 +263,25 @@
                             
                             @foreach($tests as $test)
                                 @php
-                                    $attempt = $user->attempts()
+                                    $attempt = $user->attempts
                                         ->where('test_id', $test->id)
-                                        ->with(['typeAttempts.subAnswers.subTest', 'typeAttempts.typeTest'])
-                                        ->latest()
+                                        ->sortByDesc('created_at')
                                         ->first();
                                 @endphp
                                 
                                 @if($attempt)
-                                <div class="mb-4 bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                    <div class="px-4 py-3 bg-gray-50 border-b">
+                                <div class="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <div class="border-b border-slate-100 bg-white px-4 py-4 sm:px-5">
                                         <div class="flex items-center justify-between">
                                             <div>
-                                                <h4 class="font-medium text-gray-900">{{ $test->name }}</h4>
-                                                <div class="flex items-center space-x-3 mt-1">
-                                                    <span class="text-sm text-gray-600">
-                                                        <i class="fas fa-star text-yellow-500 mr-1"></i>
-                                                        Score: {{ $attempt->score ?? '0' }}
+                                                <h4 class="font-semibold text-slate-900">{{ $test->name }}</h4>
+                                                <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-800">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m12 3 2.75 5.58 6.16.9-4.45 4.33 1.05 6.12L12 17.04l-5.51 2.89 1.05-6.12L3.09 9.48l6.16-.9L12 3Z" /></svg>
+                                                        Skor {{ $attempt->score ?? '0' }}
                                                     </span>
-                                                    <span class="text-sm text-gray-600">
-                                                        <i class="fas fa-clock text-gray-400 mr-1"></i>
+                                                    <span class="inline-flex items-center gap-1.5 text-sm text-slate-500">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" stroke-width="1.8" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 7.5v5l3 1.75" /></svg>
                                                         {{ $attempt->created_at->format('d M Y') }}
                                                     </span>
                                                 </div>
@@ -253,9 +291,9 @@
                                                     ->firstWhere('attempt_id', $attempt->id);
                                             @endphp
                                             @if($testIQ)
-                                            <div class="text-right">
-                                                <div class="text-sm font-semibold text-gray-900">{{ $testIQ['iq'] }}</div>
-                                                <div class="text-xs text-gray-500">Skor IQ</div>
+                                            <div class="rounded-xl bg-violet-50 px-3 py-2 text-left sm:text-right">
+                                                <div class="text-lg font-bold text-violet-900">{{ $testIQ['iq'] }}</div>
+                                                <div class="text-xs font-medium text-violet-700">IQ TPA</div>
                                             </div>
                                             @endif
                                         </div>
@@ -272,7 +310,7 @@
                                                 });
                                             @endphp
                                             
-                                            <div class="px-4 py-3 hover:bg-gray-50">
+                                            <div class="px-4 py-4 transition-colors hover:bg-slate-50 sm:px-5">
                                                 <div class="flex items-center justify-between mb-2">
                                                     <h5 class="font-medium text-gray-900 text-sm">{{ $typeAttempt->typeTest->name ?? 'Type Test' }}</h5>
                                                     <div class="flex items-center space-x-2">
@@ -301,7 +339,7 @@
                                                             $subPercentage = $subTotal > 0 ? round(($subCorrect / $subTotal) * 100) : 0;
                                                         @endphp
 
-                                                        <div class="flex items-center justify-between bg-white border rounded-md p-3">
+                                                        <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
                                                             <div>
                                                                 <div class="text-sm font-medium text-gray-800">{{ $subName }}</div>
                                                             </div>
@@ -342,16 +380,9 @@
         </div>
     </div>
 
-    <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div class="text-gray-600 text-sm">
-            Menampilkan {{ $users->count() }} dari {{ $users->total() }} kandidat
-        </div>
-        <div class="flex items-center space-x-2">
-            <a href="{{ route('admin.total-test.export') }}?{{ http_build_query(request()->except(['page'])) }}"
-            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm flex items-center">
-                <i class="fas fa-download mr-2 text-xs"></i> Export Excel
-            </a>
-        </div>
+    <div class="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <span>Menampilkan {{ $users->count() }} kandidat pada halaman ini dari {{ number_format($users->total(), 0, ',', '.') }} kandidat.</span>
+        <span>Export Excel di bagian atas mengikuti pencarian, tipe tes, dan tanggal yang dipilih.</span>
     </div>
     
     @if ($users->hasPages())
@@ -494,15 +525,18 @@
     function toggleAccordion(id) {
         const content = document.getElementById(id);
         const icon = document.getElementById('icon-' + id);
+        const trigger = document.querySelector(`[aria-controls="${id}"]`);
         content.classList.toggle('hidden');
+        const isExpanded = !content.classList.contains('hidden');
+        if (trigger) trigger.setAttribute('aria-expanded', String(isExpanded));
         if (content.classList.contains('hidden')) {
             icon.style.transform = 'rotate(0deg)';
-            icon.classList.remove('text-red-600');
-            icon.classList.add('text-gray-400');
+            icon.classList.remove('text-rose-600');
+            icon.classList.add('text-slate-400');
         } else {
             icon.style.transform = 'rotate(180deg)';
-            icon.classList.remove('text-gray-400');
-            icon.classList.add('text-red-600');
+            icon.classList.remove('text-slate-400');
+            icon.classList.add('text-rose-600');
         }
     }
     document.addEventListener("DOMContentLoaded", function() {
@@ -513,6 +547,7 @@
         if (filterBtn && filterOptions) {
             filterBtn.addEventListener('click', function() {
                 filterOptions.classList.toggle('hidden');
+                filterBtn.setAttribute('aria-expanded', String(!filterOptions.classList.contains('hidden')));
             });
         }
 

@@ -32,6 +32,24 @@ class TableUserController extends Controller
             $query->where('user_details.gender', $request->input('gender'));
         }
 
+        if ($request->input('completion_status') === 'complete') {
+            $query->whereNotNull('user_details.no_id')->where('user_details.no_id', '!=', '');
+        } elseif ($request->input('completion_status') === 'incomplete') {
+            $query->where(function ($query) {
+                $query->whereNull('user_details.no_id')->orWhere('user_details.no_id', '=', '');
+            });
+        }
+
+        $religion = $request->input('religion');
+        if (is_string($religion) && in_array($religion, ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'], true)) {
+            $query->where('user_details.religion', $religion);
+        }
+
+        $level = $request->input('level');
+        if (is_string($level) && in_array($level, ['SMA', 'SMK', 'MA', 'S1', 'S2', 'S3'], true)) {
+            $query->where('user_details.level', $level);
+        }
+
         $today = CarbonImmutable::today();
         $minAge = $request->input('min_age');
         if (is_numeric($minAge) && $minAge !== '') {

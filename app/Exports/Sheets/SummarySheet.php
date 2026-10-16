@@ -2,110 +2,106 @@
 
 namespace App\Exports\Sheets;
 
-use App\Models\User;
-use App\Models\Tests;
-use App\Models\Attempt;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\{
     FromArray,
+    ShouldAutoSize,
+    WithEvents,
     WithHeadings,
     WithStyles,
-    ShouldAutoSize
+    WithTitle
 };
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Maatwebsite\Excel\Events\AfterSheet;
 
-class SummarySheet implements FromArray, WithHeadings, WithStyles, ShouldAutoSize
+class SummarySheet implements FromArray, WithHeadings, WithStyles, ShouldAutoSize, WithEvents, WithTitle
 {
-    protected $users;
-    protected $startDate;
-    protected $endDate;
-    protected $tests;
+    protected Collection $users;
+    protected Collection $tests;
+    protected ?array $rows = null;
 
-    public function __construct($users, $startDate, $endDate)
+    public function __construct($users)
     {
-        $this->users     = $users;
-        $this->startDate = Carbon::parse($startDate);
-        $this->endDate   = Carbon::parse($endDate);
-
-        /**
-         * 🔥 KOLOM TEST DIAMBIL DARI ATTEMPTS
-         * test yang benar-benar dikerjakan user
-         */
-        $this->tests = Tests::whereIn(
-            'id',
-            Attempt::whereBetween('created_at', [$this->startDate, $this->endDate])
-                ->pluck('test_id')
-                ->unique()
-        )
-        ->orderBy('id')
-        ->get();
+        $this->users = collect($users);
+        $this->tests = $this->users
+            ->flatMap(fn ($user) => $user->attempts->pluck('tests'))
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
     }
 
     public function array(): array
     {
+        if ($this->rows !== null) {
+            return $this->rows;
+        }
+
         $rows = [];
-        $no   = 1;
 
         foreach ($this->users as $user) {
-
-            $attempts = $user->attempts
-                ->whereBetween('created_at', [$this->startDate, $this->endDate]);
-
-            if ($attempts->isEmpty()) continue;
+            $attempts = $user->attempts;
+            if ($attempts->isEmpty()) {
+                continue;
+            }
 
             $row = [
-                $no++,
+                count($rows) + 1,
                 $user->name,
                 $user->email,
                 $attempts->count(),
             ];
 
-            /**
-             * 🔒 URUTAN KOLOM DIKUNCI OLEH $this->tests
-             */
             foreach ($this->tests as $test) {
                 $attempt = $attempts
                     ->where('test_id', $test->id)
                     ->sortByDesc('created_at')
                     ->first();
-
                 $row[] = $attempt?->score ?? '-';
             }
 
-            // Average score dari attempts (konsisten)
             $row[] = round($attempts->avg('score'), 2);
-
             $rows[] = $row;
         }
 
-        return $rows;
+        return $this->rows = $rows;
     }
 
     public function headings(): array
     {
-        $headings = [
-            'No',
-            'Nama',
-            'Email',
-            'Jumlah Tes',
-        ];
-
-        foreach ($this->tests as $test) {
-            $headings[] = $test->name;
-        }
-
-        $headings[] = 'Average Score';
-
-        return $headings;
+        return array_merge(
+            ['No', 'Nama Kandidat', 'Email', 'Jumlah Attempt'],
+            $this->tests->pluck('name')->all(),
+            ['Rata-rata Skor']
+        );
     }
 
-    public function styles(Worksheet $sheet)
+    public function styles(Worksheet $sheet): array
     {
         return [
             1 => [
-                'font' => ['bold' => true],
-                'alignment' => ['horizontal' => 'center'],
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '9F1239']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ],
         ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event): void {
+                $sheet = $event->sheet->getDelegate();
+                $sheet->freezePane('A2');
+                $sheet->setAutoFilter('A1:' . $sheet->getHighestColumn() . $sheet->getHighestRow());
+            },
+        ];
+    }
+
+    public function title(): string
+    {
+        return 'Ringkasan';
     }
 }

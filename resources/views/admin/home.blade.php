@@ -1,6 +1,8 @@
 @extends('layouts.sidebar')
+@section('page-title', 'Dashboard')
+@section('current-page', 'Ringkasan')
 @section('content')
-<div class="p-6">
+<div class="space-y-5 sm:space-y-7">
     @if(session('success'))
         <div id="success-message" class="mb-6 p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100 border border-green-200 animate-fade-in">
             <div class="flex items-center justify-between">
@@ -44,10 +46,17 @@
         </div>
     @endif
 
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p class="text-gray-600 mt-2">Kelola semua test dan pantau statistik kandidat</p>
+    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-700 via-rose-600 to-indigo-700 p-5 text-white shadow-lg shadow-rose-900/10 sm:p-7 lg:p-8">
+        <div class="pointer-events-none absolute -right-12 -top-20 h-60 w-60 rounded-full border-[36px] border-white/10"></div>
+        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+            <div class="max-w-2xl">
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-rose-100">Panel administrator</p>
+                <h1 class="mt-2 text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">Selamat datang, {{ Str::words(Auth::user()->name, 2, '') }}</h1>
+                <p class="mt-2 text-sm leading-6 text-rose-50 sm:text-base">Kelola tes dan pantau ringkasan aktivitas kandidat dari satu tempat.</p>
+            </div>
+            <button class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-rose-700 shadow-md transition hover:-translate-y-0.5 hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-white/80" data-modal-toggle="createTestModal">
+                <i class="fas fa-plus mr-2"></i> Tambah Tes
+            </button>
         </div>
     </div>
 
@@ -83,20 +92,20 @@
             ];
         }
     @endphp
-    <div class="flex flex-wrap justify-center gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
-        <div class="flex-1 min-w-[140px] sm:min-w-[160px] md:min-w-[180px] max-w-[200px] bg-gradient-to-br from-white to-gray-50 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 transition-transform duration-300 hover:-translate-y-1">
-            <div class="text-center">
-                <div class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg sm:rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border border-blue-200">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 sm:gap-4 lg:gap-5">
+        <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+            <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50 sm:h-14 sm:w-14">
                     <i class="fas fa-users text-lg sm:text-xl md:text-2xl text-blue-600"></i>
                 </div>
-                <p class="text-gray-900 text-2xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">{{ $totalUsers ?? '0' }}</p>
-                <p class="text-gray-600 font-medium text-sm sm:text-base mb-1 truncate">Total Kandidat</p>
-                <div class="flex flex-col xs:flex-row items-center justify-center gap-1 sm:gap-2">
-                    <div class="flex items-center gap-1">
-                        <i class="fas {{ $growthIcon ?? 'fa-arrow-up' }} {{ $growthColor ?? 'text-green-600' }} text-xs sm:text-sm"></i>
-                        <span class="text-xs sm:text-sm {{ $growthColor ?? 'text-green-600' }}">{{ $growthPercentage ?? '0' }}%</span>
+                <div class="min-w-0">
+                    <p class="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{{ $totalUsers ?? '0' }}</p>
+                    <p class="mt-0.5 truncate text-sm font-semibold text-slate-600">Total Kandidat</p>
+                    <div class="mt-1 flex items-center gap-1.5">
+                        <i class="fas {{ $growthIcon ?? 'fa-arrow-up' }} {{ $growthColor ?? 'text-green-600' }} text-xs"></i>
+                        <span class="text-xs font-semibold {{ $growthColor ?? 'text-green-600' }}">{{ $growthPercentage ?? '0' }}%</span>
+                        <span class="truncate text-xs text-slate-400">dari bulan lalu</span>
                     </div>
-                    <span class="text-gray-400 text-xs sm:text-sm">dari bulan lalu</span>
                 </div>
             </div>
         </div>
@@ -107,35 +116,33 @@
                 $testAttemptCount = $testAttempts[$test->id] ?? 0;
             @endphp
             
-            <div class="flex-1 min-w-[140px] sm:min-w-[160px] md:min-w-[180px] max-w-[200px] bg-gradient-to-br from-white to-gray-50 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 transition-transform duration-300 hover:-translate-y-1">
-                <div class="text-center">
-                    <div class="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-br {{ $style['bg'] }} rounded-lg sm:rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border {{ $style['border'] }}">
+            <div class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+                <div class="flex items-center gap-4">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br {{ $style['bg'] }} border {{ $style['border'] }} sm:h-14 sm:w-14">
                         <i class="fas {{ $style['icon'] }} text-lg sm:text-xl md:text-2xl {{ $style['text'] }}"></i>
                     </div>
-                    <p class="text-gray-900 text-2xl sm:text-2xl md:text-3xl font-bold mb-1 sm:mb-2">{{ $testAttemptCount }}</p>
-                    <p class="text-gray-600 font-medium text-sm sm:text-base mb-1 truncate px-1" title="{{ $test->name }} Test">
-                        {{ Str::limit($test->name, 15) }} Test
-                    </p>
-                    <p class="text-gray-400 text-xs sm:text-sm truncate">Total sudah mengerjakan</p>
+                    <div class="min-w-0">
+                        <p class="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{{ $testAttemptCount }}</p>
+                        <p class="mt-0.5 truncate text-sm font-semibold text-slate-600" title="{{ $test->name }} Test">{{ Str::limit($test->name, 22) }} Test</p>
+                        <p class="mt-1 truncate text-xs text-slate-400">Total sudah mengerjakan</p>
+                    </div>
                 </div>
             </div>
         @endforeach
     </div>
-    <div class="bg-white rounded-2xl shadow-md overflow-hidden">
-        <div class="px-6 py-4 border-b">
-            <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-gray-900">Daftar Test</h2>
-                <button class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all flex items-center" data-modal-toggle="createTestModal">
-                    <i class="fas fa-plus mr-2"></i> Tambah Test
-                </button>
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div>
+                <h2 class="text-lg font-extrabold text-slate-900 sm:text-xl">Daftar Tes</h2>
+                <p class="mt-1 text-sm text-slate-500">Kelola tes yang tersedia di sistem.</p>
             </div>
         </div>
         
         @if(isset($tests) && count($tests) > 0)
-        <div class="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 p-3 sm:p-4 md:p-6">
+        <div class="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-5 xl:grid-cols-3">
             @foreach($tests as $test)
-            <div class="bg-white rounded-xl border border-gray-200 hover:border-red-300 transition hover:shadow-md overflow-hidden">
-                <div class="px-4 py-3 border-b">
+            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-lg hover:shadow-slate-900/5">
+                <div class="border-b border-slate-100 px-4 py-3">
                     <div class="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                         <div class="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-xl flex items-center justify-center">
                             <i class="fas fa-clipboard-check text-white text-base"></i>
@@ -182,7 +189,7 @@
 
                     </div>
                 </div>
-                <div class="p-4">
+                <div class="p-4 sm:p-5">
 
                     <p class="text-gray-600 text-sm mb-4 line-clamp-2 break-words">
                         {{ $test->description ?? 'Tidak ada deskripsi' }}
@@ -205,10 +212,10 @@
                         </span>
                     </div>
                 </div>
-                <div class="px-4 py-3 bg-gray-50 border-t text-center">
+                <div class="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-center">
                     @if(isset($test->slug))
                     <a href="{{ url('/test/'.$test->slug) }}"
-                    class="text-red-600 font-medium inline-flex items-center gap-2">
+                    class="inline-flex items-center gap-2 font-semibold text-rose-700 hover:text-rose-800">
                         Kelola Test
                         <i class="fas fa-arrow-right text-xs"></i>
                     </a>
@@ -221,7 +228,7 @@
             @endforeach
         </div>
     @else
-        <div class="p-6 sm:p-8 md:p-12 text-center">
+        <div class="p-6 text-center sm:p-8 md:p-12">
             <div class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4 sm:mb-6">
                 <i class="fas fa-clipboard-list text-xl sm:text-2xl md:text-3xl text-gray-400"></i>
             </div>

@@ -19,6 +19,8 @@ use App\Http\Controllers\AdminUserController;
 
 Auth::routes(['verify' => true]);
 
+Route::view('/', 'how-to')->name('landing');
+
 Route::get('/email/verify', function (Request $request) {
 
     if ($request->user()->hasAnyRole(['admin','super_admin'])) {
@@ -39,7 +41,6 @@ Route::middleware(['auth', 'role:super_admin'])->group(function () {
 });
 
 Route::middleware(['auth','verified','not_admin'])->group(function () { 
-    Route::get('/', [UserTestController::class, 'tests'])->name('user.tests');
     Route::get('/profile', [ProfileController::class, 'form'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'save'])->name('profile.save');
     Route::prefix('home')->group(function () {

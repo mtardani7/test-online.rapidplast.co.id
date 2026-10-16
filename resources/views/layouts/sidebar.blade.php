@@ -37,11 +37,6 @@
             font-weight: 600;
         }
 
-        .sidebar-item-group .active i {
-            color: #ffffff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
         .sidebar-item-group .active::after {
             content: '';
             position: absolute;
@@ -113,8 +108,8 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 antialiased" x-data="{ sidebarOpen: false }">
-    <div class="flex h-screen overflow-hidden">
+<body class="bg-slate-100 text-slate-800 antialiased" x-data="{ sidebarOpen: false }">
+    <div class="flex h-screen min-h-screen overflow-hidden">
         <div x-show="sidebarOpen" 
              x-transition:enter="transition-opacity ease-linear duration-300"
              x-transition:enter-start="opacity-0"
@@ -125,34 +120,34 @@
              class="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
              @click="sidebarOpen = false"></div>
 
-        <aside id="sidebar" 
-               class="fixed lg:relative flex flex-col h-full bg-gradient-to-b from-red-700 via-red-600 to-red-800 text-white z-50 
-                      transform transition-all duration-300 ease-in-out shadow-2xl w-64"
+        <aside id="sidebar" aria-label="Navigasi admin"
+               class="fixed inset-y-0 left-0 flex h-full flex-col bg-gradient-to-b from-rose-800 via-rose-700 to-rose-950 text-white z-50
+                      transform transition-all duration-300 ease-in-out shadow-2xl w-64 lg:relative"
                :class="{ '-translate-x-full': !sidebarOpen, 'translate-x-0': sidebarOpen, 'lg:translate-x-0': true }">
-            <div class="flex items-center justify-between h-20 px-4 border-b border-red-500/30 shrink-0">
+            <div class="flex items-center justify-between h-20 px-4 border-b border-white/10 shrink-0">
                 <div class="flex items-center gap-3 overflow-hidden whitespace-nowrap hide-on-collapse transition-all duration-300">
-                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-md shrink-0">
-                        <img src="{{ asset('images/RAPIDPLAST.jpg') }}" class="rounded w-8 h-8 object-contain" alt="Logo">
+                    <div class="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-md shrink-0">
+                        <img src="{{ asset('images/RAPIDPLAST.jpg') }}" class="rounded-lg w-9 h-9 object-contain" alt="Logo RapidPlast">
                     </div>
                     <div class="flex flex-col">
                         <h1 class="text-sm font-bold tracking-tight leading-tight">PT Rapid Plast</h1>
-                        <span class="text-xs text-red-200 font-medium">Indonesia</span>
+                        <span class="text-xs text-rose-100/80 font-medium">Panel Administrator</span>
                     </div>
                 </div>
                 <button id="sidebarToggle" class="hidden lg:flex items-center justify-center w-8 h-8 rounded-full bg-red-800/50 hover:bg-white/20 text-white transition-all shadow-sm">
-                    <i class="fas fa-chevron-left text-xs transition-transform duration-300" id="toggleIcon"></i>
+                    <svg class="h-4 w-4 transition-transform duration-300" id="toggleIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15 18-6-6 6-6" /></svg>
                 </button>
                 <button @click="sidebarOpen = false" class="lg:hidden text-white hover:text-red-200">
-                    <i class="fas fa-times text-xl"></i>
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 18 12-12M6 6l12 12" /></svg>
                 </button>
             </div>
-            <nav class="flex-1 overflow-y-auto overflow-x-hidden py-6 px-3 space-y-1 custom-scrollbar">
+            <nav class="flex-1 overflow-y-auto overflow-x-hidden py-5 px-3 space-y-1 custom-scrollbar">
                 <div class="sidebar-item-group relative group">
                     <a href="{{ route('admin.dashboard') }}" 
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('admin.dashboard') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-tachometer-alt text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.75 13.5a8.25 8.25 0 1 1 16.5 0v4.125A1.875 1.875 0 0 1 18.375 19.5h-1.5A1.875 1.875 0 0 1 15 17.625v-1.5a1.875 1.875 0 0 1 1.875-1.875h3.24M3.885 14.25H7.125A1.875 1.875 0 0 1 9 16.125v1.5A1.875 1.875 0 0 1 7.125 19.5h-1.5a1.875 1.875 0 0 1-1.875-1.875V13.5m8.25-3.75 2.25-2.25" /></svg>
                         </div>
                         <span class="ml-3 hide-on-collapse whitespace-nowrap">Dashboard</span>
                     </a>
@@ -169,7 +164,7 @@
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('admin.total-test.*') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-chart-pie text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11.25 3.75v8.25h8.25M19.5 12a8.25 8.25 0 1 1-8.25-8.25" /></svg>
                         </div>
                         <span class="ml-3 hide-on-collapse whitespace-nowrap">Hasil Test</span>
                     </a>
@@ -181,7 +176,7 @@
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('admin.attempts.*') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-history text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.75 12a8.25 8.25 0 1 0 2.42-5.83L3.75 8.25m0-4.5v4.5h4.5M12 7.5v4.875l3 1.875" /></svg>
                         </div>
                         <span class="ml-3 hide-on-collapse whitespace-nowrap">Reset Jawaban</span>
                     </a>
@@ -204,7 +199,7 @@
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('dashboard.users') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-users text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M16.5 19.125h4.125v-1.5a3.375 3.375 0 0 0-5.063-2.925M16.5 19.125v-1.5c0-1.08-.35-2.08-.938-2.888M16.5 19.125h-9m0 0H3.375v-1.5a3.375 3.375 0 0 1 5.063-2.925M7.5 19.125v-1.5c0-1.08.35-2.08.938-2.888m0 0a5.25 5.25 0 0 1 7.124 0M15.75 7.125a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>
                         </div>
                         <span class="ml-3 flex-1 hide-on-collapse whitespace-nowrap">Daftar Kandidat</span>
                         <span class="ml-auto bg-red-900/50 border border-red-400/30 text-white text-[10px] px-2 py-0.5 rounded-full hide-on-collapse">
@@ -219,7 +214,7 @@
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('scoring.*') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-sliders-h text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.5 6.75h9m3 0h3m-15 10.5h3m3 0h12M13.5 4.5v4.5m-3 6v4.5" /><circle cx="15" cy="6.75" r="1.5" stroke-width="1.8" /><circle cx="9" cy="17.25" r="1.5" stroke-width="1.8" /></svg>
                         </div>
                         <span class="ml-3 hide-on-collapse whitespace-nowrap">Pengaturan Rumus</span>
                     </a>
@@ -235,7 +230,7 @@
                        class="flex items-center px-3 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-medium
                               {{ request()->routeIs('admin-users.*') ? 'active bg-white/20 border-l-4 border-white shadow-lg' : '' }}">
                         <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                            <i class="fas fa-user-shield text-lg"></i>
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3.75 19.5 6v5.625c0 4.5-3.15 7.875-7.5 8.625-4.35-.75-7.5-4.125-7.5-8.625V6L12 3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 11.25a3 3 0 1 1 6 0v.75H9v-.75Zm-1.5 5.25v-2.25h9v2.25" /></svg>
                         </div>
                         <span class="ml-3 hide-on-collapse whitespace-nowrap">Manajemen Admin</span>
                     </a>
@@ -244,10 +239,10 @@
                 @endrole
 
             </nav>
-            <div class="p-4 border-t border-red-500/30 shrink-0">
-                <button id="sidebarLogoutBtn" class="sidebar-item-group relative group w-full flex items-center px-3 py-3 rounded-xl bg-red-900/30 hover:bg-red-900/50 border border-red-500/20 transition-all text-sm font-medium">
+            <div class="p-4 border-t border-white/10 shrink-0">
+                <button id="sidebarLogoutBtn" class="sidebar-item-group relative group w-full flex items-center px-3 py-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-all text-sm font-medium">
                     <div class="w-6 h-6 flex items-center justify-center shrink-0">
-                        <i class="fas fa-sign-out-alt text-lg text-red-200"></i>
+                        <svg class="h-5 w-5 text-rose-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 8.25V5.625A1.875 1.875 0 0 0 13.875 3.75h-7.5A1.875 1.875 0 0 0 4.5 5.625v12.75a1.875 1.875 0 0 0 1.875 1.875h7.5a1.875 1.875 0 0 0 1.875-1.875V15.75M10.5 12h9m0 0-3-3m3 3-3 3" /></svg>
                     </div>
                     <span class="ml-3 hide-on-collapse whitespace-nowrap">Keluar</span>
                 </button>
@@ -257,39 +252,39 @@
             </div>
         </aside>
         
-        <div class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 transition-all duration-300">
-            <header class="glass-header sticky top-0 z-30 h-20">
-                <div class="flex items-center justify-between px-6 h-full">
-                    <div class="flex items-center space-x-4">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-red-600 focus:outline-none transition-colors">
-                            <i class="fas fa-bars text-xl"></i>
+        <div class="flex min-w-0 flex-1 flex-col h-screen overflow-hidden bg-slate-100 transition-all duration-300">
+            <header class="glass-header sticky top-0 z-30 h-16 shrink-0 sm:h-20">
+                <div class="flex items-center justify-between gap-3 px-3 sm:px-5 lg:px-8 h-full">
+                    <div class="flex min-w-0 items-center space-x-3 sm:space-x-4">
+                        <button type="button" aria-label="Buka navigasi" @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2.5 rounded-xl text-slate-600 hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 transition-colors">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.5 6.75h15m-15 5.25h15m-15 5.25h15" /></svg>
                         </button>
                         
                         <div class="flex flex-col">
-                            <h2 class="text-xl font-bold text-gray-800">
+                            <h2 class="truncate text-base font-extrabold text-slate-900 sm:text-xl">
                                 @yield('page-title', 'Dashboard')
                             </h2>
-                            <div class="hidden md:flex items-center space-x-2 text-xs text-gray-500 mt-1 breadcrumb-enter">
-                                <span class="hover:text-red-600 cursor-default">Admin Panel</span>
-                                <i class="fas fa-chevron-right text-[10px]"></i>
-                                <span class="text-red-600 font-medium">@yield('current-page', 'Current Page')</span>
+                            <div class="hidden md:flex items-center space-x-2 text-xs text-slate-500 mt-1 breadcrumb-enter">
+                                <span class="cursor-default">Admin Panel</span>
+                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 18 6-6-6-6" /></svg>
+                                <span class="text-rose-700 font-semibold">@yield('current-page', 'Dashboard')</span>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="flex items-center space-x-3 md:space-x-5">
+                    <div class="flex items-center space-x-2 sm:space-x-3 md:space-x-5">
                         <div class="h-8 w-px bg-gray-200 mx-2 hidden md:block"></div>
                         
                         <div class="relative" x-data="{ open: false }">
-                            <button @click="open = !open" @click.outside="open = false" class="flex items-center space-x-3 p-1.5 pr-3 rounded-full border border-gray-200 hover:border-red-200 hover:bg-white hover:shadow-sm transition-all bg-white">
-                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+                            <button type="button" aria-label="Menu akun administrator" @click="open = !open" @click.outside="open = false" class="flex items-center space-x-2 sm:space-x-3 p-1 sm:pr-3 rounded-full border border-slate-200 hover:border-rose-200 hover:bg-white hover:shadow-sm transition-all bg-white">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center text-white font-bold text-sm shadow-inner">
                                     {{ substr(Auth::user()->name, 0, 1) }}
                                 </div>
                                 <div class="hidden md:block text-left mr-2">
                                     <p class="text-sm font-semibold text-gray-700 leading-none">{{ Auth::user()->name }}</p>
                                     <p class="text-[10px] text-gray-400 mt-1 uppercase font-medium tracking-wide">Administrator</p>
                                 </div>
-                                <i class="fas fa-chevron-down text-gray-300 text-xs transition-transform duration-200" :class="{'rotate-180': open}"></i>
+                                <svg class="h-4 w-4 text-gray-400 transition-transform duration-200" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6" /></svg>
                             </button>
 
                             <div x-show="open" 
@@ -310,7 +305,7 @@
                                 <div class="py-2">
                                     @role('super_admin')
                                         <a href="{{ route('admin-users.index') }}" class="flex items-center px-5 py-2.5 text-sm text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors">
-                                            <i class="fas fa-cog w-5 opacity-70"></i>
+                                            <svg class="mr-2 h-5 w-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4.5 6.75h9m3 0h3m-15 10.5h3m3 0h12M13.5 4.5v4.5m-3 6v4.5" /><circle cx="15" cy="6.75" r="1.5" stroke-width="1.8" /><circle cx="9" cy="17.25" r="1.5" stroke-width="1.8" /></svg>
                                             <span>Pengaturan</span>
                                         </a>
                                     @endrole
@@ -318,7 +313,7 @@
 
                                 <div class="border-t border-gray-100 mt-1 pt-1">
                                     <button id="profileLogoutBtn" class="w-full text-left flex items-center px-5 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium">
-                                        <i class="fas fa-sign-out-alt w-5 opacity-70"></i>
+                                        <svg class="mr-2 h-5 w-5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 8.25V5.625A1.875 1.875 0 0 0 13.875 3.75h-7.5A1.875 1.875 0 0 0 4.5 5.625v12.75a1.875 1.875 0 0 0 1.875 1.875h7.5a1.875 1.875 0 0 0 1.875-1.875V15.75M10.5 12h9m0 0-3-3m3 3-3 3" /></svg>
                                         <span>Keluar</span>
                                     </button>
                                 </div>
@@ -328,7 +323,7 @@
                 </div>
             </header>
 
-            <main class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth" id="mainContent">
+            <main class="flex-1 min-w-0 overflow-y-auto p-3 sm:p-5 lg:p-8 scroll-smooth" id="mainContent">
                 <div class="max-w-7xl mx-auto animate-fadeIn">
                     @yield('content')
                 </div>
@@ -345,7 +340,7 @@
         <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 transform scale-95 transition-transform duration-300">
             <div class="text-center">
                 <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce-short">
-                    <i class="fas fa-power-off text-2xl text-red-600"></i>
+                    <svg class="h-7 w-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v9m5.657-6.657a8 8 0 1 1-11.314 0" /></svg>
                 </div>
                 <h3 class="text-xl font-bold text-gray-900">Konfirmasi Keluar</h3>
                 <p class="text-gray-500 mt-2 text-sm leading-relaxed">
@@ -451,11 +446,6 @@
                     
                     link.classList.add('active', 'bg-white/20', 'border-l-4', 'border-white', 'shadow-lg');
                     
-                    const icon = link.querySelector('i');
-                    if (icon) {
-                        icon.style.color = '#ffffff';
-                        icon.style.textShadow = '0 2px 4px rgba(0,0,0,0.2)';
-                    }
                 }
             });
         });

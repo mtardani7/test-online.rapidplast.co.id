@@ -73,7 +73,11 @@ class TotalTestController extends Controller
                         $q->whereBetween('created_at', [$start, $end]);
                     }
     
-                    $q->with('tests')->latest();
+                    $q->with([
+                        'tests',
+                        'typeAttempts.subAnswers.subTest',
+                        'typeAttempts.typeTest',
+                    ])->latest();
                 }
             ])
             ->withMax('attempts', 'created_at')
@@ -165,21 +169,39 @@ class TotalTestController extends Controller
 
     public function exportExcel(Request $request)
     {
+        $rules = [
+            'q' => ['nullable', 'string', 'max:255'],
+            'test_type' => ['nullable', 'string', 'max:100'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
+        ];
+        if ($request->filled('start_date')) {
+            $rules['end_date'][] = 'after_or_equal:start_date';
+        }
+        $request->validate($rules);
+
         $startDate = $request->filled('start_date')
             ? Carbon::parse($request->start_date)->startOfDay()
-            : Carbon::today()->startOfDay();
-    
+            : null;
         $endDate = $request->filled('end_date')
             ? Carbon::parse($request->end_date)->endOfDay()
-            : Carbon::today()->endOfDay();
-    
+            : null;
+
         $query = User::whereDoesntHave('roles', function ($q) {
-            $q->where('name', 'admin');
-        })
-    
-        ->whereHas('attempts', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('created_at', [$startDate, $endDate]);
+            $q->whereIn('name', ['admin', 'super_admin']);
         });
+
+        if ($startDate || $endDate) {
+            $query->whereHas('attempts', function ($q) use ($startDate, $endDate) {
+                if ($startDate && $endDate) {
+                    $q->whereBetween('created_at', [$startDate, $endDate]);
+                } elseif ($startDate) {
+                    $q->where('created_at', '>=', $startDate);
+                } else {
+                    $q->where('created_at', '<=', $endDate);
+                }
+            });
+        }
     
         if ($request->filled('q')) {
             $query->where(function ($q) use ($request) {
@@ -196,19 +218,25 @@ class TotalTestController extends Controller
     
         $users = $query->with([
             'attempts' => function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('created_at', [$startDate, $endDate])
-                  ->with('tests'); 
-            }
+                if ($startDate || $endDate) {
+                    $q->whereBetween('created_at', [
+                        $startDate ?? Carbon::minValue(),
+                        $endDate ?? Carbon::now(),
+                    ]);
+                }
+
+                $q->with('tests')->latest();
+            },
         ])->get();
     
-        $fileName = 'Laporan_Test_' .
-            $startDate->format('Y-m-d') .
+        $fileName = 'Laporan_Hasil_Tes_' .
+            ($startDate?->format('Y-m-d') ?? 'semua') .
             '_sd_' .
-            $endDate->format('Y-m-d') .
+            ($endDate?->format('Y-m-d') ?? 'semua') .
             '.xlsx';
     
         return Excel::download(
-            new TotalTestExport($users, $startDate, $endDate),
+            new TotalTestExport($users),
             $fileName
         );
     }
