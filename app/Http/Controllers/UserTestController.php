@@ -676,6 +676,39 @@ class UserTestController extends Controller
             }
             $now = now();
 
+            // The timer or a final-submit request may arrive just after the server deadline.
+            // Persist its validated payload before finalizing the expired subtest.
+            $answersInput = $this->validatedAnswers($request, $subTest, $questions);
+            $questionsById = $questions->keyBy('id');
+            $upserts = [];
+
+            foreach ($answersInput as $questionId => $chosen) {
+                $question = $questionsById->get((int) $questionId);
+                if (!$question) {
+                    continue;
+                }
+
+                $isCorrect = $chosen !== null
+                    && $chosen == $question->correct_option_id;
+
+                $upserts[] = [
+                    'attempt_id' => $attemptId,
+                    'question_id' => $question->id,
+                    'answer' => $chosen,
+                    'is_correct' => $isCorrect,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if ($upserts !== []) {
+                AttemptAnswer::upsert(
+                    $upserts,
+                    ['attempt_id', 'question_id'],
+                    ['answer', 'is_correct', 'updated_at']
+                );
+            }
+
             if ($this->attemptService->isSubTestExpired($subAttempt, $now)) {
                 $answerStatistics = AttemptAnswer::query()
                     ->where('attempt_id', $attemptId)
@@ -700,39 +733,6 @@ class UserTestController extends Controller
                         'typeTest' => $typeTest->slug,
                     ])
                     ->with('info', 'Waktu subtest telah habis. Jawaban yang sudah tersimpan telah dinilai.');
-            }
-
-            $answersInput = $this->validatedAnswers($request, $subTest, $questions);
-            $upserts = [];
-
-            $correctCount = 0;
-            $wrongCount   = 0;
-
-            $questionsById = $questions->keyBy('id');
-            foreach ($answersInput as $questionId => $chosen) {
-                $question = $questionsById->get((int) $questionId);
-                if (!$question) {
-                    continue;
-                }
-
-                $isCorrect = $chosen !== null
-                    && $chosen == $question->correct_option_id;
-
-                $upserts[] = [
-                    'attempt_id' => $attemptId,
-                    'question_id' => $question->id,
-                    'answer' => $chosen,
-                    'is_correct' => $isCorrect,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-            if ($upserts !== []) {
-                AttemptAnswer::upsert(
-                    $upserts,
-                    ['attempt_id', 'question_id'],
-                    ['answer', 'is_correct', 'updated_at']
-                );
             }
 
             $answerStatistics = AttemptAnswer::query()

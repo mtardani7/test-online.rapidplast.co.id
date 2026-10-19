@@ -416,7 +416,7 @@ class BackendAttemptSecurityTest extends TestCase
         $this->assertFalse(Schema::hasColumn('attempt_sub_tests', 'expires_at'));
     }
 
-    public function test_expired_subtest_rejects_ajax_and_single_answer_but_submit_all_finalizes_saved_answers_only(): void
+    public function test_expired_subtest_auto_submit_persists_payload_before_finalizing_saved_answers(): void
     {
         [$user] = $this->makeUserWithRole(null);
         [$test, $typeTest, $subTest] = $this->makeHierarchy('deadline-expired');
@@ -449,9 +449,9 @@ class BackendAttemptSecurityTest extends TestCase
             \Illuminate\Support\Carbon::setTestNow();
         }
         $this->assertDatabaseHas('attempt_answers', ['question_id' => $savedQuestion->id, 'answer' => (string) $savedOption->id]);
-        $this->assertDatabaseMissing('attempt_answers', ['question_id' => $lateQuestion->id]);
+        $this->assertDatabaseHas('attempt_answers', ['question_id' => $lateQuestion->id, 'answer' => (string) $lateOption->id]);
         $this->assertTrue((bool) $subAttempt->fresh()->is_finished);
-        $this->assertSame(1, (int) $subAttempt->fresh()->correct_count);
+        $this->assertSame(2, (int) $subAttempt->fresh()->correct_count);
     }
 
     public function test_questions_no_range_reuses_loaded_answers_and_loads_only_current_choices(): void
