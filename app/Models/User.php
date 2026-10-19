@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
+use App\Notifications\CandidatePasswordReset;
+use App\Notifications\CandidateVerifyEmail;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -35,6 +37,16 @@ class User extends Authenticatable implements MustVerifyEmail
         static::created(function (User $user) {
             $user->detail()->create([]);
         });
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new CandidateVerifyEmail());
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new CandidatePasswordReset($token));
     }
 
     public function attempts()
